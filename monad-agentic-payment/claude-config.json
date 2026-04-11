@@ -1,0 +1,15 @@
+{                                                         
+    "mcpServers": {                                                                                                                                                            
+      "agentic-wallet": {                                                                                                                                                      
+        "command": "npm",                                                                                                                                                      
+        "args": ["run", "mcp"],                                                                                                                                                
+        "cwd": "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment",                                                                                                      
+        "env": {                                                                                                                                                               
+          "TEST_RPC_URL": "http://127.0.0.1:8545",                                                                                                                             
+          "TEST_PRIVATE_KEY": "0x0ba3ed24fdff2a5159fe939a4d15684f2a4c1f832965c269ee9c44a1e5dea6d1",                                                                            
+          "PRIVATE_KEY": "0x0ba3ed24fdff2a5159fe939a4d15684f2a4c1f832965c269ee9c44a1e5dea6d1",                                                                                 
+          "USER_ID": "demo-user"                                                                                                                                               
+        }                                                                                                                                                                      
+      }                                                                                                                                                                        
+    }                                                       
+  }

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "agentic-wallet": {
+      "command": "npm",
+      "args": ["run", "mcp"],
+      "env": {
+        "TEST_RPC_URL": "http://127.0.0.1:8545",
+        "TEST_PRIVATE_KEY": "你的 Ganache 私钥，运行后会自动从 .env 读取",
+        "USER_ID": "claude-code-user"
+      }
+    }
+  }
+}
