@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agentic Treasury Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>Agentic Treasury Console</h1>
+            <p class="subtitle">
+              AI Agent 支付控制台 · 限额管理 · 人工审批 · 交易审计
+            </p>
+          </div>
+        </div>
+        <div class="top-meta">
+          <div class="pill" id="chain-pill">Chain —</div>
+          <button type="button" class="btn ghost" id="btn-refresh">刷新状态</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <div class="card-head">
+            <h2>策略与限额</h2>
+            <span class="hint">单位：USD 💲</span>
+            <span class="hint" style="margin-left: 8px; opacity: 0.7;">设置 Agent 可使用的支付额度</span>
+          </div>
+          <form id="form-policy" class="form-grid">
+            <label>
+              单笔支付上限
+              <input name="maxSinglePayment" type="number" min="0" step="0.01" placeholder="10" />
+            </label>
+            <label>
+              每日预算
+              <input name="dailyBudget" type="number" min="0" step="0.01" placeholder="50" />
+            </label>
+            <label>
+              每周预算
+              <input name="weeklyBudget" type="number" min="0" step="0.01" placeholder="200" />
+            </label>
+            <label>
+              超过多少需要人工审批
+              <input name="requireHumanAbove" type="number" min="0" step="0.01" placeholder="5" />
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn primary">保存策略</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>当前会话信息</h2>
+          </div>
+          <dl class="kv">
+            <div><dt>钱包地址</dt><dd id="kv-address">—</dd></div>
+            <div><dt>Agent ID</dt><dd id="kv-agent">—</dd></div>
+            <div><dt>Session ID</dt><dd id="kv-session" class="mono">—</dd></div>
+            <div><dt>策略 ID</dt><dd id="kv-policy" class="mono">—</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card span-2">
+          <div class="card-head">
+            <h2>发起支付</h2>
+            <span class="hint">单位：ETH 💎</span>
+            <span class="hint" style="margin-left: 8px; opacity: 0.7;">输入 ETH 金额，系统自动转换为 USD 进行额度检查</span>
+          </div>
+          <form id="form-pay" class="form-pay">
+            <label>
+              收款地址
+              <input
+                name="recipient"
+                type="text"
+                placeholder="0x…"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              支付金额 (ETH)
+              <input name="amountEth" type="number" min="0" step="any" placeholder="0.001" id="amount-eth-input" />
+            </label>
+            <label class="grow">
+              折合 USD
+              <input name="amountUsd" type="text" placeholder="0.00" readonly id="amount-usd-display" style="background:#0f111a; cursor:not-allowed;" />
+            </label>
+            <label class="grow">
+              支付原因
+              <input name="reason" type="text" placeholder="例如：API 调用费用" />
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn accent">发起支付</button>
+            </div>
+          </form>
+          <div class="eth-usd-hint">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:6px;">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            <span>汇率说明：支付时输入 <strong>ETH</strong>，系统按汇率换算成 <strong>USD</strong> 后检查是否超过设定的额度。当前汇率：<strong id="eth-price-display">1 ETH ≈ 2000 USD</strong>（演示用固定汇率）</span>
+          </div>
+          <pre class="out" id="pay-result" aria-live="polite"></pre>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card span-2 gate">
+          <div class="card-head">
+            <h2>待人工审批</h2>
+            <span class="hint">超过设定阈值的支付会在这里等待你的批准</span>
+          </div>
+          <div id="pending-list" class="pending-list"></div>
+        </article>
+      </section>
+
+      <section class="card audit">
+        <div class="card-head">
+          <h2>交易记录</h2>
+          <div class="audit-tools">
+            <span class="hint" id="stats-line">—</span>
+            <label class="toggle">
+              <input type="checkbox" id="auto-refresh" />
+              自动刷新（每 5 秒）
+            </label>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>交易 ID</th>
+                <th>风险等级</th>
+                <th>金额 (ETH)</th>
+                <th>金额 (USD)</th>
+                <th>收款地址</th>
+                <th>状态</th>
+                <th>需人工审批</th>
+              </tr>
+            </thead>
+            <tbody id="audit-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <span>Monad Agentic Payment · AI Agent 安全支付系统</span>
+        <a id="explorer-link" href="#" target="_blank" rel="noreferrer">区块链浏览器</a>
+      </footer>
+    </div>
+
+    <!-- 初始化模态框 -->
+    <div id="init-modal" class="modal" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; display:none; align-items:center; justify-content:center;">
+      <div style="background:#1c1f2e; padding:32px; border-radius:12px; max-width:480px; width:90%; border:1px solid #2a2f4a;">
+        <h2 style="margin:0 0 16px; color:#fff;">连接钱包</h2>
+        <p style="color:#8b92a5; margin-bottom:24px;">选择一种方式连接本地区块链或生成临时演示钱包</p>
+
+        <div style="display:flex; gap:8px; margin-bottom:20px;">
+          <button type="button" id="btn-mode-key" class="btn primary" style="flex:1;">使用私钥</button>
+          <button type="button" id="btn-mode-random" class="btn ghost" style="flex:1;">生成随机钱包</button>
+        </div>
+
+        <div id="panel-key">
+          <label style="display:block; margin-bottom:12px; color:#8b92a5; font-size:14px;">
+            Ganache 私钥
+            <input id="init-private-key" type="password" placeholder="0x..." style="width:100%; padding:10px; margin-top:6px; background:#0f111a; border:1px solid #2a2f4a; border-radius:6px; color:#fff; font-family:IBM Plex Mono,monospace;" />
+          </label>
+          <button type="button" id="btn-init-with-key" class="btn accent" style="width:100%;">连接钱包</button>
+        </div>
+
+        <div id="panel-random" style="display:none;">
+          <p style="color:#8b92a5; font-size:14px; margin-bottom:16px;">生成一个临时随机钱包（仅用于演示，刷新页面后重置）</p>
+          <button type="button" id="btn-init-random" class="btn accent" style="width:100%;">生成随机钱包</button>
+        </div>
+
+        <div id="init-status" style="margin-top:16px; padding:12px; border-radius:6px; font-size:14px; display:none;"></div>
+      </div>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

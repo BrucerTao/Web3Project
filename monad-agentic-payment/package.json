@@ -18,7 +18,8 @@
     "cli": "tsx src/cli.ts",
     "deploy": "tsx src/deploy.ts",
     "local-test": "tsx src/local-test.ts",
-    "test-mcp": "tsx src/test-mcp.ts"
+    "test-mcp": "tsx src/test-mcp.ts",
+    "ui": "tsx src/ui-server.ts"
   },
   "keywords": [
     "monad",
