@@ -287,6 +287,9 @@ COPY src ./src
 COPY tsconfig.json ./
 COPY .env.example ./.env
 
+# 创建数据目录（用于审计日志持久化）
+RUN mkdir -p /app/data
+
 # 构建（可选，如果直接运行 tsx 可以跳过）
 # RUN npm run build
 
@@ -311,6 +314,9 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
+    volumes:
+      # 挂载数据目录，持久化审计日志
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "pgrep", "-f", "tsx"]
       interval: 30s
@@ -333,7 +339,15 @@ docker-compose up -d --build
 
 # 3. 查看日志
 docker-compose logs -f mcp-server
+
+# 4. 查看审计日志数据
+ls -la data/
 ```
+
+**数据持久化说明：**
+- 审计日志保存在 `data/<钱包地址>/audit-logs.json`
+- 使用 Docker volume 挂载 `./data:/app/data`，确保容器重启后数据不丢失
+- 不同钱包地址的数据自动隔离
 
 ### 5.3 方案二：部署到 VPS/云服务器
 
@@ -349,15 +363,23 @@ npm install --production
 cp .env.example .env
 vim .env  # 编辑私钥等配置
 
-# 4. 使用 PM2 管理进程
+# 4. 创建数据目录（审计日志持久化）
+mkdir -p data
+
+# 5. 使用 PM2 管理进程
 npm install -g pm2
 pm2 start dist/mcp-server.js --name agentic-mcp
 pm2 save
 pm2 startup
 
-# 5. 设置开机自启
+# 6. 设置开机自启
 pm2 startup systemd
 ```
+
+**数据持久化说明：**
+- 审计日志自动保存在 `/opt/agentic-mcp/data/<钱包地址>/audit-logs.json`
+- 进程重启或服务器重启后数据自动恢复
+- 建议定期备份 `data/` 目录到外部存储
 
 ### 5.4 方案三：部署到 Serverless 平台
 
@@ -473,7 +495,37 @@ Claude：调用 get_audit_logs 工具...
 [显示最近的交易和策略检查记录]
 ```
 
-### 6.4 部署安全
+**审计日志持久化：**
+- 审计日志自动保存到 `data/<钱包地址>/audit-logs.json`
+- 不同钱包地址的数据完全隔离
+- 重启服务后自动恢复历史记录
+- 支持导出 JSON/CSV 格式用于外部审计
+
+### 6.4 数据持久化
+
+**目录结构：**
+```
+data/
+├── 0x860Ee9Df87ebbc14bc125B732eA1c2D186dFE29F/
+│   └── audit-logs.json    # 该钱包的所有审计日志
+├── 0x8590c2fe5832fA79779f3441CA6AFA9EA3b6C530/
+│   └── audit-logs.json    # 另一个钱包的审计日志
+└── ...
+```
+
+**特性：**
+- ✅ 每个钱包地址独立数据目录
+- ✅ 重启后自动加载对应钱包的历史记录
+- ✅ 不会加载其他钱包的数据
+- ✅ 支持 BigInt 序列化/反序列化
+- ✅ 错误处理：文件损坏时自动新建
+
+**注意事项：**
+- `data/` 目录已添加到 `.gitignore`，不会被提交
+- 生产环境建议定期备份 `data/` 目录
+- 可使用 `export_audit_logs` 工具导出审计报告
+
+### 6.5 部署安全
 
 **生产环境检查清单：**
 - [ ] 使用 HTTPS 而不是 HTTP

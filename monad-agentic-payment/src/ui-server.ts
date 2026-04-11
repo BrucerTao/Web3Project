@@ -9,6 +9,8 @@
  * 2. 不设置：前端可通过 POST /api/init 传入私钥或生成随机钱包
  */
 
+import 'dotenv/config';
+
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,7 +33,6 @@ interface ServerState {
   provider: JsonRpcProvider;
 }
 
-const rejectedApprovalIds = new Set<string>();
 const rpcUrl = process.env.TEST_RPC_URL || MONAD_CONFIG.RPC_URL;
 const provider = new ethers.JsonRpcProvider(rpcUrl);
 
@@ -52,6 +53,7 @@ if (process.env.PRIVATE_KEY) {
     ownerWallet,
     userId: 'ui-demo-user',
     rpcUrl,
+    dataDir: './data',
   });
 
   const { agent, sessionKey, policy } = wallet.registerAgent(
@@ -134,8 +136,7 @@ function getPendingApprovals(): unknown[] {
     (log) =>
       log.paymentResult?.requiredHumanApproval &&
       !log.paymentResult.success &&
-      !log.paymentResult.txHash &&
-      !rejectedApprovalIds.has(log.id)
+      !log.paymentResult.txHash
   );
 }
 
@@ -183,6 +184,7 @@ async function handleApi(
         ownerWallet,
         userId: 'ui-demo-user',
         rpcUrl,
+        dataDir: './data',
       });
 
       const { agent, sessionKey, policy } = wallet.registerAgent(
@@ -379,13 +381,7 @@ async function handleApi(
     }
 
     const approved = Boolean(body.approved);
-    if (!approved) {
-      rejectedApprovalIds.add(auditLogId);
-      json(res, { ok: true, rejected: true });
-      return;
-    }
-
-    const out = await state.wallet!.approvePayment(auditLogId, true);
+    const out = await state.wallet!.approvePayment(auditLogId, approved);
     json(res, { ...out });
     return;
   }

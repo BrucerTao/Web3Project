@@ -381,7 +381,7 @@ input:focus {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.78rem;
-  min-width: 720px;
+  min-width: 820px;
 }
 
 .data th,
@@ -390,6 +390,18 @@ input:focus {
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
+  max-width: 180px;
+}
+
+.data th:nth-child(6),
+.data td:nth-child(6),
+.data th:nth-child(7),
+.data td:nth-child(7) {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
 }
 
 .data th {

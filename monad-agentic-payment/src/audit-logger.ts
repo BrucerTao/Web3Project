@@ -5,8 +5,12 @@
  * - 结构化存储
  * - 查询和导出
  * - 可解释性（每笔支付的决策过程）
+ * - JSON 文件持久化
+ * - 按钱包地址隔离数据
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   AuditLog,
   PaymentRequest,
@@ -14,11 +18,91 @@ import {
   PolicyCheckResult,
 } from './types.js';
 
+export interface AuditLoggerConfig {
+  dataDir?: string;       // 数据根目录，默认 './data'
+  walletAddress?: string; // 钱包地址，用于隔离数据
+}
+
 export class AuditLogger {
   private logs: Map<string, AuditLog> = new Map();
   private logsByUser: Map<string, Set<string>> = new Map();
   private logsByAgent: Map<string, Set<string>> = new Map();
   private logsByTask: Map<string, Set<string>> = new Map();
+  private dataDir: string;
+  private dataFile: string;
+  private walletAddress: string;
+
+  constructor(config: AuditLoggerConfig = {}) {
+    const dataDir = config.dataDir || './data';
+    this.walletAddress = config.walletAddress || 'unknown';
+
+    // 数据目录结构：data/{walletAddress}/audit-logs.json
+    this.dataDir = path.resolve(process.cwd(), dataDir, this.walletAddress);
+    this.dataFile = path.join(this.dataDir, 'audit-logs.json');
+
+    this.ensureDataDir();
+    this.loadLogs();
+  }
+
+  /**
+   * 确保数据目录存在
+   */
+  private ensureDataDir(): void {
+    if (!fs.existsSync(this.dataDir)) {
+      fs.mkdirSync(this.dataDir, { recursive: true });
+      console.log(`[AUDIT] Created data directory: ${this.dataDir}`);
+    }
+  }
+
+  /**
+   * 从 JSON 文件加载审计日志
+   */
+  private loadLogs(): void {
+    if (!fs.existsSync(this.dataFile)) {
+      console.log('[AUDIT] No existing audit logs found, starting fresh');
+      return;
+    }
+
+    try {
+      const content = fs.readFileSync(this.dataFile, 'utf-8');
+      const parsedLogs = JSON.parse(content);
+
+      if (!Array.isArray(parsedLogs)) {
+        console.warn('[AUDIT] Invalid audit logs format, starting fresh');
+        return;
+      }
+
+      // 重建索引
+      for (const log of parsedLogs) {
+        // 恢复 BigInt 类型
+        log.paymentRequest.amount = BigInt(log.paymentRequest.amount);
+        log.timestamp = new Date(log.timestamp);
+
+        this.logs.set(log.id, log);
+        this.indexByUser(log.userId, log.id);
+        this.indexByAgent(log.agentId, log.id);
+        if (log.paymentRequest.taskId) {
+          this.indexByTask(log.paymentRequest.taskId, log.id);
+        }
+      }
+
+      console.log(`[AUDIT] Loaded ${parsedLogs.length} existing audit logs from ${this.dataFile}`);
+    } catch (err: any) {
+      console.warn(`[AUDIT] Failed to load audit logs: ${err.message}, starting fresh`);
+    }
+  }
+
+  /**
+   * 保存审计日志到 JSON 文件（公开方法，供外部调用）
+   */
+  saveLogs(): void {
+    try {
+      const content = this.exportLogs();
+      fs.writeFileSync(this.dataFile, content, 'utf-8');
+    } catch (err: any) {
+      console.error(`[AUDIT] Failed to save audit logs: ${err.message}`);
+    }
+  }
 
   /**
    * 记录审计日志
@@ -64,7 +148,33 @@ export class AuditLogger {
 
     console.log(`[AUDIT] ${auditLog.id}: ${paymentResult.success ? 'SUCCESS' : 'FAILED'} - ${paymentRequest.reason}`);
 
+    // 持久化到文件
+    this.saveLogs();
+
     return auditLog;
+  }
+
+  /**
+   * 更新审计日志
+   */
+  updateLog(
+    logId: string,
+    updates: Partial<AuditLog['paymentResult']>
+  ): boolean {
+    const log = this.logs.get(logId);
+    if (!log) {
+      return false;
+    }
+
+    // 更新支付结果
+    Object.assign(log.paymentResult, updates);
+
+    // 持久化到文件
+    this.saveLogs();
+
+    console.log(`[AUDIT] ${logId}: Updated - ${updates.success ? 'SUCCESS' : 'REJECTED'}`);
+
+    return true;
   }
 
   /**
@@ -172,7 +282,7 @@ export class AuditLogger {
 
     // 自定义序列化 BigInt
     return JSON.stringify(logs, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value, null, 2);
+      typeof value === 'bigint' ? value.toString() : value, 2);
   }
 
   /**

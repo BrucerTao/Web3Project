@@ -105,13 +105,17 @@ function renderAudit(logs) {
       statusClass = 'fail';
     }
 
+    // 发款地址（从 sessionId 或 state 获取，这里显示 agentId 作为发款方标识）
+    const payerAddress = log.agentId || '—';
+
     tr.innerHTML = `
       <td>${fmtTime(log.timestamp)}</td>
       <td>${log.id}</td>
       <td><span class="risk ${riskClass(log.riskLevel)}">${log.riskLevel === 'low' ? '低' : log.riskLevel === 'medium' ? '中' : log.riskLevel === 'high' ? '高' : '严重'}</span></td>
       <td>${amountEth}</td>
       <td>$${amountUsd}</td>
-      <td>${(pr.recipient || '').slice(0, 10)}…</td>
+      <td title="${pr.recipient || ''}">${(pr.recipient || '').slice(0, 10)}…</td>
+      <td title="${payerAddress}">${payerAddress.slice(0, 10)}…</td>
       <td><span class="badge ${statusClass}">${statusText}</span></td>
       <td>${hum ? '是' : '否'}</td>
     `;

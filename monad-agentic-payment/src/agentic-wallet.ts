@@ -36,6 +36,9 @@ export interface AgenticWalletConfig {
 
   // 可选：用户 ID
   userId?: string;
+
+  // 可选：审计日志数据目录（默认 ./data）
+  dataDir?: string;
 }
 
 export interface CreateAgentResult {
@@ -58,10 +61,12 @@ export class AgenticWallet {
   private auditLogger: AuditLogger;
 
   private userId: string;
+  private walletAddress: string;
 
   constructor(config: AgenticWalletConfig) {
     this.config = config;
     this.userId = config.userId || `user-${Date.now()}`;
+    this.walletAddress = config.ownerWallet.address;
 
     // 初始化各模块
     this.policyEngine = new PolicyEngine();
@@ -71,7 +76,10 @@ export class AgenticWallet {
       config.rpcUrl || MONAD_CONFIG.RPC_URL,
       config.mppContractAddress
     );
-    this.auditLogger = new AuditLogger();
+    this.auditLogger = new AuditLogger({
+      dataDir: config.dataDir,
+      walletAddress: this.walletAddress,
+    });
   }
 
   /**
@@ -290,6 +298,13 @@ export class AgenticWallet {
     }
 
     if (!approved) {
+      // 用户拒绝，更新审计日志为失败状态
+      this.auditLogger.updateLog(auditLogId, {
+        success: false,
+        error: 'Rejected by user',
+        requiredHumanApproval: false, // 已拒绝，不再需要人工审批
+      });
+
       return {
         success: false,
         error: 'User rejected payment',
@@ -316,10 +331,13 @@ export class AgenticWallet {
       updatedPolicyChecks
     );
 
-    if (paymentResult.success) {
-      // 更新审计日志
-      auditLog.paymentResult = paymentResult;
+    // 更新审计日志（无论成功还是失败）
+    auditLog.paymentResult = paymentResult;
 
+    // 持久化到文件
+    this.auditLogger.saveLogs();
+
+    if (paymentResult.success) {
       return {
         success: true,
         txHash: paymentResult.txHash,
