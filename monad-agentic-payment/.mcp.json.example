@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "agentic-wallet": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"
+      ],
+      "env": {
+        "TEST_RPC_URL": "http://127.0.0.1:8545",
+        "TEST_PRIVATE_KEY": "0x 你的私钥",
+        "PRIVATE_KEY": "0x 你的私钥"
+      }
+    }
+  }
+}

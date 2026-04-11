@@ -86,25 +86,23 @@ npm run test-mcp
 
 ## 第二部分：在 Claude Code 中使用
 
-### 2.1 配置方式 1：全局配置（推荐）
+### 2.1 配置方式 1：项目级配置（推荐）
 
-编辑你的 Claude Code 配置文件：
-
-**macOS/Linux:** `~/.config/claude-code/claude_config.json`
-**Windows:** `%APPDATA%\claude-code\claude_config.json`
+在项目根目录创建 `.mcp.json` 文件：
 
 ```json
 {
   "mcpServers": {
     "agentic-wallet": {
       "command": "npx",
-      "args": ["tsx", "src/mcp-server.ts"],
-      "cwd": "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment",
+      "args": [
+        "tsx",
+        "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"
+      ],
       "env": {
         "TEST_RPC_URL": "http://127.0.0.1:8545",
         "TEST_PRIVATE_KEY": "0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8",
-        "PRIVATE_KEY": "0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8",
-        "USER_ID": "claude-code-user"
+        "PRIVATE_KEY": "0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8"
       }
     }
   }
@@ -112,21 +110,75 @@ npm run test-mcp
 ```
 
 > ⚠️ **注意**：
-> - `cwd` 必须指向项目根目录（包含 package.json 的目录）
+> - `args` 中的文件路径必须使用**绝对路径**（从 `/` 开始的完整路径）
+> - 不要使用相对路径如 `src/mcp-server.ts`，Claude Code 不会自动解析 `cwd`
 > - 私钥请替换为你自己的 Ganache 私钥
 
-### 2.2 配置方式 2：在 Claude Code 对话中临时添加
+### 2.2 配置方式 2：全局配置
 
-在 Claude Code 中输入：
+编辑你的 Claude Code 全局配置文件：
+
+**macOS/Linux:** `~/.claude.json`
+
+```json
+{
+  "mcpServers": {
+    "agentic-wallet": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"
+      ],
+      "env": {
+        "TEST_RPC_URL": "http://127.0.0.1:8545",
+        "TEST_PRIVATE_KEY": "0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8",
+        "PRIVATE_KEY": "0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8"
+      }
+    }
+  }
+}
+```
+
+> ⚠️ **配置文件位置说明**：
+> - Claude Code 的配置文件位于 `~/.claude.json`（macOS/Linux）
+> - 不是 `~/.config/claude-code/claude_config.json`
+> - 可以使用 `/config mcp` 命令查看当前配置
+
+### 2.3 配置方式 3：使用命令配置
+
+在 Claude Code 对话中输入：
 
 ```
-/config mcp add agentic-wallet --command "npx" --arg "tsx" --arg "src/mcp-server.ts" \
-  --cwd "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment" \
-  --env TEST_RPC_URL=http://127.0.0.1:8545 \
-  --env TEST_PRIVATE_KEY=0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8
+/config mcp add agentic-wallet --command "npx" --arg "tsx" --arg "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts" --env TEST_RPC_URL="http://127.0.0.1:8545" --env TEST_PRIVATE_KEY="0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8" --env PRIVATE_KEY="0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8"
 ```
 
-### 2.3 使用示例
+### 2.4 验证配置
+
+配置完成后，验证是否成功：
+
+**方式 1：在 Claude Code 中查看**
+```
+/config mcp
+```
+应该能看到 `agentic-wallet` 在列表中。
+
+**方式 2：请求工具列表**
+```
+列出 agentic-wallet 可用的工具
+```
+
+应该看到 9 个工具：
+- `get_wallet_info`
+- `register_agent`
+- `request_payment`
+- `approve_payment`
+- `revoke_agent`
+- `list_sessions`
+- `list_policies`
+- `get_audit_logs`
+- `generate_receipt`
+
+### 2.5 使用示例
 
 配置成功后，在 Claude Code 中可以这样使用：
 
@@ -162,19 +214,19 @@ Claude：正在获取审计日志...
 
 ## 第三部分：在 Cursor 中使用
 
-### 3.1 Cursor MCP 配置
+### 3.1 配置方式 1：项目级配置（推荐）
 
-Cursor 通过 `.cursor/mcp.json` 文件配置 MCP Server。
-
-在项目根目录创建 `.cursor/mcp.json`：
+在项目根目录创建 `.cursor/mcp.json` 文件：
 
 ```json
 {
   "mcpServers": {
     "agentic-wallet": {
       "command": "npx",
-      "args": ["tsx", "src/mcp-server.ts"],
-      "cwd": "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment",
+      "args": [
+        "tsx",
+        "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"
+      ],
       "env": {
         "TEST_RPC_URL": "http://127.0.0.1:8545",
         "TEST_PRIVATE_KEY": "0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8",
@@ -185,14 +237,25 @@ Cursor 通过 `.cursor/mcp.json` 文件配置 MCP Server。
 }
 ```
 
-### 3.2 Cursor 全局配置
+> ⚠️ **注意**：
+> - `args` 中的文件路径必须使用**绝对路径**（从 `/` 开始的完整路径）
+> - Cursor 不支持 `cwd` 配置，必须使用完整路径
+> - 私钥请替换为你自己的 Ganache 私钥
 
-或者在 Cursor 的设置中配置：
+### 3.2 配置方式 2：Cursor 全局配置
+
+或者在 Cursor 的设置中全局配置：
 
 1. 打开 Cursor 设置（Cmd+, / Ctrl+,）
 2. 找到 "MCP Servers" 或 "AI Extensions"
 3. 点击 "Add MCP Server"
-4. 填写上述配置
+4. 填写配置：
+   - **Command**: `npx`
+   - **Args**: `tsx /Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts`
+   - **Environment Variables**:
+     - `TEST_RPC_URL=http://127.0.0.1:8545`
+     - `TEST_PRIVATE_KEY=0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8`
+     - `PRIVATE_KEY=0x9ba549d204a50344552e61579f776a47c2e8ac5b4dd5f7f0cfd4eaa2c5ea3df8`
 
 ### 3.3 在 Cursor 中使用
 
@@ -200,6 +263,16 @@ Cursor 通过 `.cursor/mcp.json` 文件配置 MCP Server。
 1. 打开 Cursor 的 AI 聊天窗口（Cmd+L / Ctrl+L）
 2. 输入类似 "使用 agentic-wallet 注册一个 Agent"
 3. Cursor 会自动调用 MCP Server 的工具
+
+### 3.4 验证配置
+
+在 Cursor 聊天窗口中输入：
+
+```
+列出 agentic-wallet 可用的工具
+```
+
+应该能看到 9 个工具列表。
 
 ---
 
@@ -230,8 +303,7 @@ USER_ID=monad-test-user
   "mcpServers": {
     "agentic-wallet": {
       "command": "npx",
-      "args": ["tsx", "src/mcp-server.ts"],
-      "cwd": "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment",
+      "args": ["tsx", "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"],
       "env": {
         "TEST_RPC_URL": "https://testnet-rpc.monad.xyz",
         "TEST_PRIVATE_KEY": "0x你的私钥",
@@ -296,7 +368,7 @@ RUN mkdir -p /app/data
 EXPOSE 3000
 
 # 运行 MCP Server
-CMD ["npx", "tsx", "src/mcp-server.ts"]
+CMD ["npx", "tsx", "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"]
 ```
 
 **docker-compose.yml:**
@@ -548,12 +620,22 @@ data/
 2. 确认 `TEST_PRIVATE_KEY` 或 `PRIVATE_KEY` 已设置
 3. 如果使用 Docker，确保环境变量已传入容器
 
-**Q2: Claude Code 无法连接到 MCP Server？**
+**Q2: Claude Code 或 Cursor 无法获取工具列表？**
 
 解决：
-1. 确认 Ganache 在运行：`lsof -ti:8545`
-2. 检查 `cwd` 配置是否指向正确的目录
-3. 尝试重启 Claude Code
+1. 确认配置文件中使用**绝对路径**（如 `/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts`）
+2. 不要使用相对路径（如 `src/mcp-server.ts`），Claude Code 和 Cursor 都不支持 `cwd`
+3. 重启 Claude Code / Cursor 使配置生效
+4. 检查 `.env` 文件是否配置正确
+
+**手动测试 MCP Server：**
+
+```bash
+# 在项目根目录运行
+npx tsx src/mcp-server.ts
+```
+
+如果看到 "MCP Server running on stdio" 说明服务正常，问题在配置路径上。
 
 **Q3: Monad 测试网交易失败？**
 
@@ -568,23 +650,32 @@ data/
 # 详细日志输出
 DEBUG=mcp:* npm run mcp
 
-# 查看 MCP Server 输出
+# 查看 MCP Server 输出（在项目根目录运行）
 npx tsx src/mcp-server.ts 2>&1 | tee mcp.log
 ```
 
 ### 7.3 手动测试
 
-使用 `mcp-cli` 测试：
+**使用 mcp-cli 测试：**
 
 ```bash
 # 安装
 npm install -g @anthropic/mcp-cli
 
-# 测试服务器
+# 测试服务器（在项目根目录运行）
 mcp-cli inspect --command "npx" --arg "tsx" --arg "src/mcp-server.ts" \
   --env TEST_RPC_URL=http://127.0.0.1:8545 \
   --env TEST_PRIVATE_KEY=0x...
 ```
+
+**直接在终端运行 MCP Server：**
+
+```bash
+cd /Users/huangtao/mybiz/Web3Project/monad-agentic-payment
+npx tsx src/mcp-server.ts
+```
+
+如果看到类似 "MCP Server running on stdio" 的输出，说明服务正常运行。
 
 ---
 
@@ -598,5 +689,10 @@ mcp-cli inspect --command "npx" --arg "tsx" --arg "src/mcp-server.ts" \
 
 ---
 
-**最后更新**: 2026-04-11
-**支持版本**: MCP SDK 1.0+, Agentic Wallet 1.0.0
+**最后更新**: 2026-04-11  
+**支持版本**: MCP SDK 1.0+, Agentic Wallet 1.0.0  
+**更新内容**: 
+- Claude Code 配置说明（`.mcp.json` 和 `~/.claude.json`）
+- Cursor 配置说明（`.cursor/mcp.json`）
+- 使用绝对路径配置（重要！）
+- 故障排查指南
