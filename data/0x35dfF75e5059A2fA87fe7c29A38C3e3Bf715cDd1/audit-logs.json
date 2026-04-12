@@ -1,0 +1,98 @@
+[
+  {
+    "id": "audit-1775982039323-w6mgy0",
+    "userId": "user-0x35dfF7",
+    "agentId": "agent-1775981991732-h98t",
+    "sessionId": "session-1775981991757-db06lz",
+    "paymentRequest": {
+      "id": "payment-1775982039322",
+      "recipient": "0xa94539bc6d15BE605C9A9de86DbA13701bF15d31",
+      "amount": "4000000000000000",
+      "agentId": "agent-1775981991732-h98t",
+      "userId": "user-0x35dfF7",
+      "reason": "转账测试",
+      "category": "transfer",
+      "createdAt": "2026-04-12T08:20:39.322Z"
+    },
+    "paymentResult": {
+      "success": true,
+      "txHash": "0x45a5c4cd8601922fad04683f440ffbcba8cdf5a8107cb30a9ba8f393dc317ed5",
+      "blockNumber": 24,
+      "gasUsed": "21000",
+      "policyChecks": {
+        "passed": true,
+        "policyId": "policy-agent-1775981991732-h98t-1775981991732",
+        "checks": {
+          "singleLimit": {
+            "passed": false,
+            "amount": 8,
+            "limit": 5
+          },
+          "dailyBudget": {
+            "passed": true,
+            "spent": 0,
+            "amount": 8
+          },
+          "recipientWhitelist": {
+            "passed": true
+          },
+          "methodAllowed": {
+            "passed": true
+          },
+          "humanApproval": {
+            "required": false,
+            "amount": 8,
+            "threshold": 5,
+            "approved": true
+          }
+        },
+        "riskLevel": "high",
+        "riskFactors": [
+          "Amount exceeds single payment limit ($8 > $5)",
+          "Requires human approval ($8 > $5)"
+        ]
+      },
+      "requiredHumanApproval": false,
+      "timestamp": "2026-04-12T08:21:38.048Z"
+    },
+    "policyId": "policy-agent-1775981991732-h98t-1775981991732",
+    "policyChecks": {
+      "passed": true,
+      "policyId": "policy-agent-1775981991732-h98t-1775981991732",
+      "checks": {
+        "singleLimit": {
+          "passed": false,
+          "amount": 8,
+          "limit": 5
+        },
+        "dailyBudget": {
+          "passed": true,
+          "spent": 0,
+          "amount": 8
+        },
+        "recipientWhitelist": {
+          "passed": true
+        },
+        "methodAllowed": {
+          "passed": true
+        },
+        "humanApproval": {
+          "required": true,
+          "amount": 8,
+          "threshold": 5
+        }
+      },
+      "riskLevel": "high",
+      "riskFactors": [
+        "Amount exceeds single payment limit ($8 > $5)",
+        "Requires human approval ($8 > $5)"
+      ]
+    },
+    "riskLevel": "high",
+    "riskFactors": [
+      "Amount exceeds single payment limit ($8 > $5)",
+      "Requires human approval ($8 > $5)"
+    ],
+    "timestamp": "2026-04-12T08:20:39.323Z"
+  }
+]

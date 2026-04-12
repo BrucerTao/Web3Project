@@ -12,12 +12,24 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { AgenticWallet } from './agentic-wallet.js';
 import { MONAD_CONFIG } from './types.js';
 
 // 全局钱包实例（由环境变量初始化）
 let agenticWallet: AgenticWallet | null = null;
+
+/**
+ * 自定义 JSON 序列化函数，处理 BigInt 类型
+ */
+function jsonStringify(obj: any): string {
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    return value;
+  }, 2);
+}
 
 /**
  * 初始化钱包（从环境变量加载私钥）
@@ -30,7 +42,8 @@ function initWallet(): AgenticWallet {
   }
 
   const rpcUrl = process.env.TEST_RPC_URL || MONAD_CONFIG.RPC_URL;
-  const wallet = new Wallet(privateKey);
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new Wallet(privateKey, provider);
   console.error(`[MCP] Initialized wallet: ${wallet.address}`);
   console.error(`[MCP] RPC URL: ${rpcUrl}`);
 
@@ -245,16 +258,12 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(
-                  {
-                    address: agenticWallet!.getAddress(),
-                    balance: balance + ' ETH',
-                    chainId: MONAD_CONFIG.CHAIN_ID,
-                    stats,
-                  },
-                  null,
-                  2
-                ),
+                text: jsonStringify({
+                  address: agenticWallet!.getAddress(),
+                  balance: balance + ' ETH',
+                  chainId: MONAD_CONFIG.CHAIN_ID,
+                  stats,
+                }),
               },
             ],
           };
@@ -276,39 +285,46 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(
-                  {
-                    agent: result.agent,
-                    sessionKey: {
-                      id: result.sessionKey.id,
-                      publicKey: result.sessionKey.publicKey,
-                      expiresAt: result.sessionKey.expiresAt,
-                    },
-                    policy: result.policy,
+                text: jsonStringify({
+                  agent: result.agent,
+                  sessionKey: {
+                    id: result.sessionKey.id,
+                    publicKey: result.sessionKey.publicKey,
+                    expiresAt: result.sessionKey.expiresAt,
                   },
-                  null,
-                  2
-                ),
+                  policy: result.policy,
+                }),
               },
             ],
           };
         }
 
         case 'request_payment': {
+          const sessionId = args!.sessionId as string;
+          const recipient = args!.recipient as string;
+          const amountEth = args!.amountEth as number;
+          const reason = args!.reason as string;
+          const taskId = args!.taskId as string | undefined;
+
+          console.error(`[MCP] request_payment: sessionId=${sessionId.slice(0, 10)}..., recipient=${recipient.slice(0, 10)}..., amountEth=${amountEth}`);
+
           const result = await agenticWallet!.requestPayment(
-            args!.sessionId as string,
-            args!.recipient as string,
-            args!.amountEth as number,
-            args!.reason as string,
+            sessionId,
+            recipient,
+            amountEth,
+            reason,
             {
-              taskId: args!.taskId as string | undefined,
+              taskId,
             }
           );
+
+          console.error(`[MCP] request_payment result: success=${result.success}, requiresHumanApproval=${result.requiresHumanApproval}, error=${result.error || 'none'}`);
+
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(result, null, 2),
+                text: jsonStringify(result),
               },
             ],
           };
@@ -323,7 +339,7 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(result, null, 2),
+                text: jsonStringify(result),
               },
             ],
           };
@@ -338,7 +354,7 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({ success, agentId: args!.agentId }, null, 2),
+                text: jsonStringify({ success, agentId: args!.agentId }),
               },
             ],
           };
@@ -352,7 +368,7 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(sessions, null, 2),
+                text: jsonStringify(sessions),
               },
             ],
           };
@@ -364,7 +380,7 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(policies, null, 2),
+                text: jsonStringify(policies),
               },
             ],
           };
@@ -379,7 +395,7 @@ function createServer(): Server {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(logs, null, 2),
+                text: jsonStringify(logs),
               },
             ],
           };
@@ -415,13 +431,9 @@ function createServer(): Server {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(
-              {
-                error: error instanceof Error ? error.message : 'Unknown error',
-              },
-              null,
-              2
-            ),
+            text: jsonStringify({
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }),
           },
         ],
         isError: true,
