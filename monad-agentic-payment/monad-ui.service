@@ -1,0 +1,19 @@
+[Unit]
+Description=Monad Agentic Payment UI Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/monad-agentic-payment
+ExecStart=/usr/bin/npm run ui
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+# 日志
+StandardOutput=append:/var/log/monad-ui.log
+StandardError=append:/var/log/monad-ui-error.log
+
+[Install]
+WantedBy=multi-user.target
