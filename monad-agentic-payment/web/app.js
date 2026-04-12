@@ -220,8 +220,9 @@ async function renderPending(items) {
     root.appendChild(el);
 
     // 如果 AI 自动审批已开启且未自动审批，调用 AI
-    if (autoAuditEnabled && !log.autoAudited) {
+    if (autoAuditEnabled && !log.paymentResult?.autoAudited) {
       console.log('[AI 自动审批] 准备调用:', log.id);
+      console.log('[AI 自动审批] 风险等级:', log.riskLevel);
       callAutoAudit(log).then((result) => {
         if (result) {
           console.log('[AI 自动审批] 处理完成:', result.action);
@@ -255,10 +256,13 @@ async function loadPending() {
 
 // 调用远程 AI 自动审批 API
 async function callAutoAudit(auditLog) {
+  const riskLevel = auditLog.riskLevel || 'unknown';
+  const auditId = auditLog.id;
+  const txId = auditLog.paymentRequest?.id || '—';
+
   try {
-    console.log('[AI 自动审批] 发送审计日志到 DashScope:', auditLog.id);
-    console.log('[AI 自动审批] 风险等级:', auditLog.riskLevel || 'unknown');
-    console.log('[AI 自动审批] 风险因素:', auditLog.riskFactors || []);
+    // 精简日志：关键信息
+    console.log(`[AI 审计] ${auditId} | 交易 ${txId} | 风险等级：${riskLevel}`);
 
     const response = await api('/api/auto-audit', {
       method: 'POST',
@@ -267,58 +271,69 @@ async function callAutoAudit(auditLog) {
 
     if (response && response.output) {
       const text = response.output.text;
-      console.log('[AI 自动审批] DashScope 返回:', text);
 
       try {
         const result = JSON.parse(text);
-        console.log('[AI 自动审批] 解析结果:', result);
-        console.log('[AI 自动审批] need_confirm:', result.need_confirm);
-        console.log('[AI 自动审批] risk_msg:', result.risk_msg || '');
+        const needConfirm = result.need_confirm === 'false' || result.need_confirm === false;
+        const riskMsg = result.risk_msg || '';
 
-        // 无论 AI 建议批准还是人工确认，都先标记 autoAudited=true
+        // 标记 AI 已审
         await api('/api/approve', {
           method: 'POST',
           body: JSON.stringify({
-            auditLogId: auditLog.id,
-            approved: null,  // null 表示不执行批准/拒绝，仅标记 AI 已审
+            auditLogId: auditId,
+            approved: null,
             autoApproved: true,
-            aiRiskMsg: result.risk_msg || '',
+            aiRiskMsg: riskMsg,
           }),
         });
 
-        if (result.need_confirm === 'false' || result.need_confirm === false) {
-          // AI 认为不需要人工确认，自动批准
-          console.log('[AI 自动审批] AI 建议批准，自动调用批准接口');
+        // 高风险自动拒绝
+        if (riskLevel === 'high' || riskLevel === 'critical') {
+          console.log(`[AI 审计] ${auditId} | 高风险自动拒绝 | ${riskMsg.slice(0, 60)}...`);
           await api('/api/approve', {
             method: 'POST',
             body: JSON.stringify({
-              auditLogId: auditLog.id,
-              approved: true,
+              auditLogId: auditId,
+              approved: false,
               autoApproved: true,
-              aiRiskMsg: result.risk_msg || '',
+              aiRiskMsg: riskMsg,
             }),
           });
-          console.log('[AI 自动审批] 已自动批准交易:', auditLog.id);
-          // 刷新全部（包括审计日志列表）
           await refreshAll();
-          return { action: 'approved', result, riskMsg: result.risk_msg };
-        } else {
-          // AI 认为需要人工确认，保持待审批状态
-          console.log('[AI 自动审批] AI 建议人工确认:', result.risk_msg || '');
-          // 刷新 pending 列表和审计日志（显示 AI 已审标记）
-          await loadPending();
-          await loadAudit();
-          return { action: 'pending', result, riskMsg: result.risk_msg };
+          return { action: 'rejected', result, riskMsg };
         }
+
+        // AI 建议批准
+        if (needConfirm) {
+          console.log(`[AI 审计] ${auditId} | 自动批准 | ${riskMsg.slice(0, 60)}...`);
+          await api('/api/approve', {
+            method: 'POST',
+            body: JSON.stringify({
+              auditLogId: auditId,
+              approved: true,
+              autoApproved: true,
+              aiRiskMsg: riskMsg,
+            }),
+          });
+          await refreshAll();
+          return { action: 'approved', result, riskMsg };
+        }
+
+        // AI 建议人工确认
+        console.log(`[AI 审计] ${auditId} | 转人工确认 | ${riskMsg.slice(0, 60)}...`);
+        await loadPending();
+        await loadAudit();
+        return { action: 'pending', result, riskMsg };
+
       } catch (e) {
-        console.error('[AI 自动审批] 解析返回结果失败:', e);
-        console.error('[AI 自动审批] 原始返回:', text);
+        console.error(`[AI 审计] ${auditId} | 解析失败:`, e.message);
       }
     }
 
     return null;
   } catch (err) {
-    console.error('[AI 自动审批] 调用失败:', err.message);
+    console.error(`[AI 审计] ${auditId} | 调用失败:`, err.message);
     return null;
   }
 }

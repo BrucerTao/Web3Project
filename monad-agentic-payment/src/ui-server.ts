@@ -264,9 +264,8 @@ async function handleApi(
       return;
     }
 
-    console.log('[AI 自动审批] 收到请求，审计日志 ID:', auditLog.id);
-    console.log('[AI 自动审批] 风险等级:', auditLog.riskLevel || 'unknown');
-    console.log('[AI 自动审批] 风险因素:', auditLog.riskFactors || []);
+    // 精简日志：关键信息
+    console.log(`[AI 审计] ${auditLog.id} | 交易 ${auditLog.paymentRequest?.id || '—'} | 风险等级：${auditLog.riskLevel || 'unknown'}`);
 
     // 构建请求体
     const requestBody = {
@@ -278,8 +277,6 @@ async function handleApi(
       },
       parameters: {},
     };
-
-    console.log('[AI 自动审批] 调用 DashScope:', appId);
 
     const postData = JSON.stringify(requestBody);
     const options = {
@@ -302,7 +299,7 @@ async function handleApi(
       resHttps.on('end', () => {
         const responseText = Buffer.concat(chunks).toString('utf-8');
         const duration = Date.now() - startTime;
-        console.log('[AI 自动审批] DashScope 响应耗时:', duration + 'ms');
+        console.log(`[AI 审计] ${auditLog.id} | DashScope 耗时：${duration}ms`);
 
         // 解析 SSE 流式响应
         const lines = responseText.split('\n').filter(line => line.trim());
@@ -317,7 +314,6 @@ async function handleApi(
                 finishReason = data.output.finish_reason || '';
                 if (finishReason === 'stop' || finishReason === '"stop"') {
                   resultText = data.output.text || '';
-                  console.log('[AI 自动审批] AI 返回结果:', resultText);
                   break;
                 }
               }
@@ -336,7 +332,7 @@ async function handleApi(
     });
 
     reqHttps.on('error', (e) => {
-      console.error('[AI 自动审批] DashScope 请求失败:', e.message);
+      console.error(`[AI 审计] ${auditLog.id} | DashScope 请求失败:`, e.message);
       json(res, { error: 'DashScope request failed', details: e.message }, 500);
     });
 
@@ -498,6 +494,9 @@ async function handleApi(
       return;
     }
 
+    // 当 AI 自动审批开启时，所有交易都需要人工审批（AI 作为"人"）
+    const requireAIReview = autoAuditConfig.enabled;
+
     const result = await state.wallet!.requestPayment(
       state.sessionId!,
       recipient,
@@ -506,7 +505,8 @@ async function handleApi(
       {
         taskId: body.taskId || `ui-task-${Date.now()}`,
         description: 'Agentic Payment UI',
-      }
+      },
+      requireAIReview
     );
 
     json(res, {

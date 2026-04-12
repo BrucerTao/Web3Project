@@ -139,7 +139,8 @@ export class AgenticWallet {
     recipient: string,
     amountEth: number,
     reason: string,
-    context?: PaymentContext
+    context?: PaymentContext,
+    requireAIReview: boolean = false  // AI 审批开启时，所有交易都需要人工审批
   ): Promise<{
     success: boolean;
     result?: PaymentResult;
@@ -184,11 +185,15 @@ export class AgenticWallet {
     const policyCheckResult = await this.policyEngine.checkPayment(
       paymentRequest,
       policy,
-      sessionKey
+      sessionKey,
+      requireAIReview
     );
 
     // 5. 如果策略检查失败，记录审计日志并返回
-    if (!policyCheckResult.passed) {
+    // 但如果需要人工审批，即使单笔超额也进入待审批列表
+    const needsHumanApproval = policyCheckResult.checks.humanApproval.required;
+
+    if (!policyCheckResult.passed && !needsHumanApproval) {
       const auditLog = this.auditLogger.log(
         this.userId,
         sessionKey.agentId,
@@ -217,8 +222,8 @@ export class AgenticWallet {
       };
     }
 
-    // 6. 如果需要人工确认
-    if (policyCheckResult.checks.humanApproval.required) {
+    // 6. 如果需要人工确认（包括单笔超额但需要人工审批的情况）
+    if (needsHumanApproval) {
       const auditLog = this.auditLogger.log(
         this.userId,
         sessionKey.agentId,
@@ -241,7 +246,7 @@ export class AgenticWallet {
       return {
         success: false,
         requiresHumanApproval: true,
-        error: `Requires human approval (>$${policy.requireHumanAbove})`,
+        error: `Requires human approval`,
         auditLogId: auditLog.id,
       };
     }

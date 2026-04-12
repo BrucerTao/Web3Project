@@ -50,7 +50,8 @@ export class PolicyEngine {
   async checkPayment(
     request: PaymentRequest,
     policy: Policy,
-    sessionKey?: SessionKey
+    sessionKey?: SessionKey,
+    requireAllForAIReview: boolean = false  // AI 审批开启时，所有交易都需要人工审批
   ): Promise<PolicyCheckResult> {
     const checks: PolicyCheckResult['checks'] = {
       singleLimit: { passed: true, amount: this.weiToUSD(request.amount) },
@@ -135,8 +136,12 @@ export class PolicyEngine {
     // 6. 检查是否需要人工确认
     if (policy.requireHumanAbove !== undefined) {
       checks.humanApproval.threshold = policy.requireHumanAbove;
-      if (amountUSD > policy.requireHumanAbove) {
+      // 当 AI 审批开启时，所有交易都需要人工审批；否则按阈值判断
+      if (requireAllForAIReview || amountUSD > policy.requireHumanAbove) {
         checks.humanApproval.required = true;
+      }
+      // 风险因素只按实际是否超过阈值添加（用于风险等级计算）
+      if (amountUSD > policy.requireHumanAbove) {
         riskFactors.push(`Requires human approval ($${amountUSD} > $${policy.requireHumanAbove})`);
       }
     }
@@ -170,12 +175,41 @@ export class PolicyEngine {
     const sessionKeyValid = !sessionKey ||
       (!sessionKey.isRevoked && new Date() <= sessionKey.expiresAt);
 
+    // 计算是否通过：
+    // 严重问题（直接拒绝）：黑名单、策略过期、Session Key 无效/被撤销
+    const hasCriticalIssues =
+      riskFactors.some(f => f.includes('blacklist') || f.includes('blocked')) ||
+      riskFactors.some(f => f.includes('expired')) ||
+      !sessionKeyValid;
+
+    if (hasCriticalIssues) {
+      return {
+        passed: false,
+        policyId: policy.id,
+        checks,
+        riskLevel,
+        riskFactors,
+      };
+    }
+
+    // 非严重问题：单笔超额、每日预算超额、白名单外、需要人工审批
+    // 如果需要人工审批，允许进入待审批流程（给人工或 AI 审批机会）
+    if (checks.humanApproval.required) {
+      return {
+        passed: true,  // 需要人工审批，保持 passed=true 进入待审批列表
+        policyId: policy.id,
+        checks,
+        riskLevel,
+        riskFactors,
+      };
+    }
+
+    // 不需要人工审批，按正常逻辑判断
     return {
       passed: checks.singleLimit.passed &&
               checks.dailyBudget.passed &&
               checks.recipientWhitelist.passed &&
-              checks.methodAllowed.passed &&
-              sessionKeyValid,
+              checks.methodAllowed.passed,
       policyId: policy.id,
       checks,
       riskLevel,
