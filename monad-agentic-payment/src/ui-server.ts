@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { Wallet, ethers, type JsonRpcProvider } from 'ethers';
 import { AgenticWallet } from './agentic-wallet.js';
 import { MONAD_CONFIG } from './types.js';
+import https from 'node:https';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.join(__dirname, '..', 'web');
@@ -44,6 +45,12 @@ const state: ServerState = {
   policyId: null,
   rpcUrl,
   provider,
+};
+
+// AI 自动审批配置状态
+let autoAuditConfig = {
+  enabled: false,
+  lastUpdated: Date.now(),
 };
 
 // 如果启动时设置了 PRIVATE_KEY，则自动初始化
@@ -232,6 +239,151 @@ async function handleApi(
     return;
   }
 
+  // AI 自动审批接口（调用 DashScope 通义千问）- 不需要钱包初始化
+  if (method === 'POST' && pathname === '/api/auto-audit') {
+    const raw = await readBody(req);
+    let body: { auditLog?: any };
+    try {
+      body = JSON.parse(raw || '{}');
+    } catch {
+      json(res, { error: 'Invalid JSON' }, 400);
+      return;
+    }
+
+    const auditLog = body.auditLog;
+    if (!auditLog) {
+      json(res, { error: 'auditLog required' }, 400);
+      return;
+    }
+
+    const apiKey = process.env.DASHSCOPE_API_KEY;
+    const appId = process.env.DASHSCOPE_APP_ID;
+
+    if (!apiKey || !appId) {
+      json(res, { error: 'DashScope not configured', hint: '请设置 DASHSCOPE_API_KEY 和 DASHSCOPE_APP_ID 环境变量' }, 400);
+      return;
+    }
+
+    console.log('[AI 自动审批] 收到请求，审计日志 ID:', auditLog.id);
+    console.log('[AI 自动审批] 风险等级:', auditLog.riskLevel || 'unknown');
+    console.log('[AI 自动审批] 风险因素:', auditLog.riskFactors || []);
+
+    // 构建请求体
+    const requestBody = {
+      input: {
+        prompt: JSON.stringify(auditLog),
+        biz_params: {
+          auto_audit_flag: autoAuditConfig.enabled,
+        },
+      },
+      parameters: {},
+    };
+
+    console.log('[AI 自动审批] 调用 DashScope:', appId);
+
+    const postData = JSON.stringify(requestBody);
+    const options = {
+      hostname: 'dashscope.aliyuncs.com',
+      port: 443,
+      path: `/api/v1/apps/${appId}/completion`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'X-DashScope-SSE': 'enable',
+      },
+    };
+
+    const startTime = Date.now();
+    const reqHttps = https.request(options, (resHttps) => {
+      const chunks: Buffer[] = [];
+      resHttps.on('data', (chunk) => chunks.push(chunk));
+      resHttps.on('end', () => {
+        const responseText = Buffer.concat(chunks).toString('utf-8');
+        const duration = Date.now() - startTime;
+        console.log('[AI 自动审批] DashScope 响应耗时:', duration + 'ms');
+
+        // 解析 SSE 流式响应
+        const lines = responseText.split('\n').filter(line => line.trim());
+        let resultText = '';
+        let finishReason = '';
+
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            try {
+              const data = JSON.parse(line.slice(5).trim());
+              if (data.output) {
+                finishReason = data.output.finish_reason || '';
+                if (finishReason === 'stop' || finishReason === '"stop"') {
+                  resultText = data.output.text || '';
+                  console.log('[AI 自动审批] AI 返回结果:', resultText);
+                  break;
+                }
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+
+        if (resultText) {
+          json(res, { output: { text: resultText, finishReason } });
+        } else {
+          json(res, { output: { text: responseText, finishReason: 'unknown' } });
+        }
+      });
+    });
+
+    reqHttps.on('error', (e) => {
+      console.error('[AI 自动审批] DashScope 请求失败:', e.message);
+      json(res, { error: 'DashScope request failed', details: e.message }, 500);
+    });
+
+    reqHttps.write(postData);
+    reqHttps.end();
+    return;
+  }
+
+  // AI 自动审批配置接口 - 获取/设置开关状态
+  if (method === 'GET' && pathname === '/api/auto-audit/config') {
+    json(res, { enabled: autoAuditConfig.enabled, lastUpdated: autoAuditConfig.lastUpdated });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/auto-audit/config') {
+    const raw = await readBody(req);
+    let body: { enabled?: boolean };
+    try {
+      body = JSON.parse(raw || '{}');
+    } catch {
+      json(res, { error: 'Invalid JSON' }, 400);
+      return;
+    }
+
+    autoAuditConfig.enabled = Boolean(body.enabled);
+    autoAuditConfig.lastUpdated = Date.now();
+
+    console.log('[AI 自动审批] 配置更新:', autoAuditConfig.enabled ? '已开启' : '已关闭');
+    console.log('[AI 自动审批] 配置时间:', new Date(autoAuditConfig.lastUpdated).toISOString());
+
+    json(res, { ok: true, enabled: autoAuditConfig.enabled, lastUpdated: autoAuditConfig.lastUpdated });
+    return;
+  }
+
+  // AI 自动审批日志接口 - 获取调用历史
+  if (method === 'GET' && pathname === '/api/auto-audit/logs') {
+    // 从审计日志中筛选出经过 AI 审批的记录
+    if (state.wallet) {
+      const allLogs = state.wallet.getAuditLogs({ limit: 100 });
+      const aiLogs = allLogs.filter(log => log.paymentResult?.autoAudited === true);
+      json(res, { logs: aiLogs });
+      return;
+    }
+    json(res, { logs: [] });
+    return;
+  }
+
   if (!ensureInitialized(res)) return;
 
   if (method === 'GET' && pathname === '/api/state') {
@@ -366,7 +518,7 @@ async function handleApi(
 
   if (method === 'POST' && pathname === '/api/approve') {
     const raw = await readBody(req);
-    let body: { auditLogId?: string; approved?: boolean };
+    let body: { auditLogId?: string; approved?: boolean | null; autoApproved?: boolean; aiRiskMsg?: string };
     try {
       body = JSON.parse(raw || '{}');
     } catch {
@@ -380,8 +532,12 @@ async function handleApi(
       return;
     }
 
-    const approved = Boolean(body.approved);
-    const out = await state.wallet!.approvePayment(auditLogId, approved);
+    // approved 可以是 true, false, 或 null（仅标记 AI 已审）
+    const approved = body.approved === undefined ? null : body.approved;
+    const out = await state.wallet!.approvePayment(auditLogId, approved, {
+      autoApproved: body.autoApproved,
+      aiRiskMsg: body.aiRiskMsg,
+    });
     json(res, { ...out });
     return;
   }

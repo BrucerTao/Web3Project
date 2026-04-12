@@ -71,6 +71,15 @@ async function loadState() {
 
   // 更新 ETH 汇率显示
   $('#eth-price-display').textContent = `1 ETH ≈ ${ETH_USD_RATE} USD`;
+
+  // 加载 AI 自动审批开关状态（从后端获取）
+  try {
+    const config = await api('/api/auto-audit/config');
+    $('#auto-audit-toggle').checked = config.enabled;
+    console.log('[AI 自动审批] 当前状态:', config.enabled ? '已开启' : '已关闭');
+  } catch (e) {
+    console.error('[AI 自动审批] 获取配置失败:', e);
+  }
 }
 
 async function loadStats() {
@@ -89,6 +98,8 @@ function renderAudit(logs) {
     const pr = log.paymentRequest || {};
     const ok = log.paymentResult?.success;
     const hum = log.paymentResult?.requiredHumanApproval;
+    const autoAudited = log.paymentResult?.autoAudited;
+    const aiRiskMsg = log.paymentResult?.aiRiskMsg;
 
     // 计算金额（wei -> ETH -> USD）
     const amountWei = pr.amount || '0';
@@ -108,6 +119,28 @@ function renderAudit(logs) {
     // 发款地址（从 sessionId 或 state 获取，这里显示 agentId 作为发款方标识）
     const payerAddress = log.agentId || '—';
 
+    // 审批类型显示
+    // - 如果 autoAudited=true，显示 AI 审批
+    // - 如果需要人工审批且有人工批准记录，显示人工审批
+    // - 否则显示"—"（未触发额度或不需要审批）
+    let approvalTypeHtml = '<span>—</span>';
+    if (autoAudited) {
+      // AI 自动审批
+      const badgeClass = aiRiskMsg ? 'ai-audited' : 'ai-auto-pass';
+      const tooltip = aiRiskMsg || 'AI 自动通过，无需人工确认';
+      approvalTypeHtml = `<span class="badge ${badgeClass}" title="${tooltip.replace(/"/g, '&quot;')}">🤖 AI 审批</span>`;
+    } else if (hum && log.paymentResult?.humanApproved === true) {
+      // 人工审批通过
+      approvalTypeHtml = '<span class="badge human-approved" title="人工审核通过">👤 人工审批</span>';
+    } else if (!hum) {
+      // 未触发人工审批阈值，正常通过
+      if (ok) {
+        approvalTypeHtml = '<span class="badge auto-pass" title="未触发审批阈值，自动通过">✅ 自动通过</span>';
+      } else {
+        approvalTypeHtml = '<span class="badge auto-fail" title="策略检查失败">❌ 策略拒绝</span>';
+      }
+    }
+
     tr.innerHTML = `
       <td>${fmtTime(log.timestamp)}</td>
       <td>${log.id}</td>
@@ -118,6 +151,7 @@ function renderAudit(logs) {
       <td title="${payerAddress}">${payerAddress.slice(0, 10)}…</td>
       <td><span class="badge ${statusClass}">${statusText}</span></td>
       <td>${hum ? '是' : '否'}</td>
+      <td>${approvalTypeHtml}</td>
     `;
     tb.appendChild(tr);
   }
@@ -128,7 +162,7 @@ async function loadAudit() {
   renderAudit(logs || []);
 }
 
-function renderPending(items) {
+async function renderPending(items) {
   const root = $('#pending-list');
   root.innerHTML = '';
   if (!items.length) {
@@ -138,14 +172,45 @@ function renderPending(items) {
     root.appendChild(p);
     return;
   }
+
+  // 先获取 AI 自动审批开关状态
+  let autoAuditEnabled = false;
+  try {
+    const config = await api('/api/auto-audit/config');
+    autoAuditEnabled = config.enabled;
+    console.log('[AI 自动审批] 当前状态:', autoAuditEnabled ? '已开启' : '已关闭');
+  } catch (e) {
+    console.error('[AI 自动审批] 获取配置失败:', e);
+  }
+
+  // 渲染所有项目
   for (const log of items) {
     const pr = log.paymentRequest || {};
     const el = document.createElement('div');
     el.className = 'pending-item';
+    el.dataset.logId = log.id;
+
+    // 审批类型显示
+    const autoAudited = log.paymentResult?.autoAudited;
+    const aiRiskMsg = log.paymentResult?.aiRiskMsg;
+
+    let aiBadge = '';
+    if (autoAudited) {
+      const tooltip = aiRiskMsg || 'AI 已审核';
+      aiBadge = `<span class="badge ai-audited" style="margin-left:8px;" title="${tooltip.replace(/"/g, '&quot;')}">🤖 AI 已审</span>`;
+    }
+
+    // AI 风险提示（如果有）
+    let aiHint = '';
+    if (aiRiskMsg && !autoAudited) {
+      aiHint = `<div class="ai-hint" style="font-size:0.75rem;color:#a78bfa;margin-top:4px;">${aiRiskMsg}</div>`;
+    }
+
     el.innerHTML = `
       <div>
-        <div class="title">${pr.reason || '支付请求'}</div>
+        <div class="title">${pr.reason || '支付请求'}${aiBadge}</div>
         <div class="meta">${log.id} · 收款方：${pr.recipient || ''}</div>
+        ${aiHint}
       </div>
       <div class="pending-actions">
         <button type="button" class="btn small danger" data-id="${log.id}" data-act="reject">拒绝</button>
@@ -153,6 +218,20 @@ function renderPending(items) {
       </div>
     `;
     root.appendChild(el);
+
+    // 如果 AI 自动审批已开启且未自动审批，调用 AI
+    if (autoAuditEnabled && !log.autoAudited) {
+      console.log('[AI 自动审批] 准备调用:', log.id);
+      callAutoAudit(log).then((result) => {
+        if (result) {
+          console.log('[AI 自动审批] 处理完成:', result.action);
+          if (result.action === 'approved') {
+            // 已自动批准，刷新列表
+            loadPending();
+          }
+        }
+      }).catch(console.error);
+    }
   }
 
   root.querySelectorAll('button[data-act]').forEach((btn) => {
@@ -171,7 +250,77 @@ function renderPending(items) {
 
 async function loadPending() {
   const { items } = await api('/api/pending');
-  renderPending(items || []);
+  await renderPending(items || []);
+}
+
+// 调用远程 AI 自动审批 API
+async function callAutoAudit(auditLog) {
+  try {
+    console.log('[AI 自动审批] 发送审计日志到 DashScope:', auditLog.id);
+    console.log('[AI 自动审批] 风险等级:', auditLog.riskLevel || 'unknown');
+    console.log('[AI 自动审批] 风险因素:', auditLog.riskFactors || []);
+
+    const response = await api('/api/auto-audit', {
+      method: 'POST',
+      body: JSON.stringify({ auditLog }),
+    });
+
+    if (response && response.output) {
+      const text = response.output.text;
+      console.log('[AI 自动审批] DashScope 返回:', text);
+
+      try {
+        const result = JSON.parse(text);
+        console.log('[AI 自动审批] 解析结果:', result);
+        console.log('[AI 自动审批] need_confirm:', result.need_confirm);
+        console.log('[AI 自动审批] risk_msg:', result.risk_msg || '');
+
+        // 无论 AI 建议批准还是人工确认，都先标记 autoAudited=true
+        await api('/api/approve', {
+          method: 'POST',
+          body: JSON.stringify({
+            auditLogId: auditLog.id,
+            approved: null,  // null 表示不执行批准/拒绝，仅标记 AI 已审
+            autoApproved: true,
+            aiRiskMsg: result.risk_msg || '',
+          }),
+        });
+
+        if (result.need_confirm === 'false' || result.need_confirm === false) {
+          // AI 认为不需要人工确认，自动批准
+          console.log('[AI 自动审批] AI 建议批准，自动调用批准接口');
+          await api('/api/approve', {
+            method: 'POST',
+            body: JSON.stringify({
+              auditLogId: auditLog.id,
+              approved: true,
+              autoApproved: true,
+              aiRiskMsg: result.risk_msg || '',
+            }),
+          });
+          console.log('[AI 自动审批] 已自动批准交易:', auditLog.id);
+          // 刷新全部（包括审计日志列表）
+          await refreshAll();
+          return { action: 'approved', result, riskMsg: result.risk_msg };
+        } else {
+          // AI 认为需要人工确认，保持待审批状态
+          console.log('[AI 自动审批] AI 建议人工确认:', result.risk_msg || '');
+          // 刷新 pending 列表和审计日志（显示 AI 已审标记）
+          await loadPending();
+          await loadAudit();
+          return { action: 'pending', result, riskMsg: result.risk_msg };
+        }
+      } catch (e) {
+        console.error('[AI 自动审批] 解析返回结果失败:', e);
+        console.error('[AI 自动审批] 原始返回:', text);
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.error('[AI 自动审批] 调用失败:', err.message);
+    return null;
+  }
 }
 
 async function refreshAll() {
@@ -230,6 +379,23 @@ $('#auto-refresh').addEventListener('change', (e) => {
   clearInterval(timer);
   if (e.target.checked) {
     timer = setInterval(refreshAll, 5000);
+  }
+});
+
+// 自动审核开关状态保存到后端
+$('#auto-audit-toggle').addEventListener('change', async (e) => {
+  const enabled = e.target.checked;
+  try {
+    await api('/api/auto-audit/config', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+    console.log(`[AI 自动审批] ${enabled ? '已开启' : '已关闭'}`);
+    console.log('[AI 自动审批] 配置已同步到后端');
+  } catch (err) {
+    console.error('[AI 自动审批] 保存配置失败:', err);
+    // 失败时回滚开关状态
+    e.target.checked = !enabled;
   }
 });
 

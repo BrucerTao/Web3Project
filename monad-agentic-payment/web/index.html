@@ -58,6 +58,13 @@
               <button type="submit" class="btn primary">保存策略</button>
             </div>
           </form>
+          <div class="auto-audit-switch" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2f4a;">
+            <label class="toggle" style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="auto-audit-toggle" />
+              <span style="color: #fff; font-size: 14px;">AI 自动审批</span>
+            </label>
+            <span class="hint" style="display: block; margin-top: 8px; font-size: 12px; opacity: 0.6;">开启后使用通义千问自动审核待审批交易</span>
+          </div>
         </article>
 
         <article class="card">
@@ -151,6 +158,7 @@
                 <th>发款地址</th>
                 <th>状态</th>
                 <th>需人工审批</th>
+                <th>审批类型</th>
               </tr>
             </thead>
             <tbody id="audit-body"></tbody>

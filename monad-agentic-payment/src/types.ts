@@ -127,6 +127,10 @@ export interface PaymentResult {
   requiredHumanApproval: boolean;
   humanApproved?: boolean;
 
+  // AI 自动审批信息
+  autoAudited?: boolean;
+  aiRiskMsg?: string;
+
   timestamp: Date;
 }
 

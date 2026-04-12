@@ -283,14 +283,31 @@ export class AgenticWallet {
 
   /**
    * 人工批准支付（用于超过阈值的支付）
+   * approved 参数：
+   *   - true: 批准并执行支付
+   *   - false: 拒绝支付
+   *   - null/undefined: 仅标记 AI 已审，不执行批准/拒绝
    */
   async approvePayment(
     auditLogId: string,
-    approved: boolean
+    approved: boolean | null,
+    options?: { autoApproved?: boolean; aiRiskMsg?: string }
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     const auditLog = this.auditLogger.getLog(auditLogId);
     if (!auditLog) {
       return { success: false, error: 'Audit log not found' };
+    }
+
+    // 如果 approved 为 null/undefined，仅标记 AI 已审，不执行其他操作
+    if (approved === null || approved === undefined) {
+      if (options?.autoApproved) {
+        this.auditLogger.updateLog(auditLogId, {
+          autoAudited: true,
+          aiRiskMsg: options.aiRiskMsg || '',
+        });
+        console.log(`[AUDIT] ${auditLogId}: Marked as AI auto-audited`);
+      }
+      return { success: true, error: undefined };
     }
 
     if (!auditLog.paymentResult.requiredHumanApproval) {
@@ -309,6 +326,14 @@ export class AgenticWallet {
         success: false,
         error: 'User rejected payment',
       };
+    }
+
+    // 如果是 AI 自动批准，添加标记
+    if (options?.autoApproved) {
+      this.auditLogger.updateLog(auditLogId, {
+        autoAudited: true,
+        aiRiskMsg: options.aiRiskMsg || '',
+      });
     }
 
     // 创建修改后的策略检查结果，标记人工确认已完成
@@ -332,7 +357,15 @@ export class AgenticWallet {
     );
 
     // 更新审计日志（无论成功还是失败）
-    auditLog.paymentResult = paymentResult;
+    // 保留 autoAudited 和 aiRiskMsg 字段
+    const preservedFields = {
+      autoAudited: auditLog.paymentResult.autoAudited,
+      aiRiskMsg: auditLog.paymentResult.aiRiskMsg,
+    };
+    auditLog.paymentResult = {
+      ...paymentResult,
+      ...preservedFields,
+    };
 
     // 持久化到文件
     this.auditLogger.saveLogs();
