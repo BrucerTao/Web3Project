@@ -1,15 +1,24 @@
+# MCP 配置示例 - Ganache 本地测试
+#
+# 使用说明:
+# 1. 复制此文件为 .mcp.json
+# 2. 将 PRIVATE_KEY 替换为你的 Ganache 私钥
+# 3. 重启 Claude Code 加载配置
+#
+# 获取 Ganache 私钥:
+# 运行 `ganache --chain.chainId 10143`，第一个账户的私钥即为所求
+
 {
   "mcpServers": {
     "agentic-wallet": {
       "command": "npx",
       "args": [
         "tsx",
-        "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"
+        "monad-agentic-payment/src/mcp-server.ts"
       ],
       "env": {
         "TEST_RPC_URL": "http://127.0.0.1:8545",
-        "TEST_PRIVATE_KEY": "0x 你的私钥",
-        "PRIVATE_KEY": "0x 你的私钥"
+        "PRIVATE_KEY": "0x 你的 Ganache 私钥"
       }
     }
   }

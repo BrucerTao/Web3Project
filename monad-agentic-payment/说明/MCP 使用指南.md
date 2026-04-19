@@ -314,6 +314,41 @@ USER_ID=monad-test-user
 }
 ```
 
+#### 使用加密私钥（推荐）
+
+生产环境建议使用加密私钥：
+
+**步骤 1: 加密私钥**
+```bash
+npm run encrypt
+# 输入私钥和密码，得到加密结果
+```
+
+**步骤 2: 配置 MCP**
+```json
+{
+  "mcpServers": {
+    "agentic-wallet": {
+      "command": "npx",
+      "args": ["tsx", "/Users/huangtao/mybiz/Web3Project/monad-agentic-payment/src/mcp-server.ts"],
+      "env": {
+        "TEST_RPC_URL": "https://testnet-rpc.monad.xyz",
+        "ENCRYPTED_PRIVATE_KEY": "{\"ciphertext\":\"...\",\"salt\":\"...\",\"iv\":\"...\"}",
+        "DECRYPT_PASSWORD": "你的密码"
+      }
+    }
+  }
+}
+```
+
+⚠️ **注意**：`ENCRYPTED_PRIVATE_KEY` 的值需要进行 JSON 转义（内层双引号前加反斜杠）。
+
+**步骤 3: 验证配置**
+```bash
+node -e "JSON.parse(require('fs').readFileSync('.mcp.json', 'utf8'))"
+# 无错误则格式正确
+```
+
 ### 4.4 验证配置
 
 运行测试脚本验证连接：

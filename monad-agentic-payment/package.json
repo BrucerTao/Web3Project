@@ -19,7 +19,9 @@
     "deploy": "tsx src/deploy.ts",
     "local-test": "tsx src/local-test.ts",
     "test-mcp": "tsx src/test-mcp.ts",
-    "ui": "tsx src/ui-server.ts"
+    "ui": "tsx src/ui-server.ts",
+    "encrypt": "tsx src/cli-encrypt.ts",
+    "encrypt:mcp": "tsx src/cli-encrypt.ts --mcp"
   },
   "keywords": [
     "monad",

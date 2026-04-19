@@ -1,0 +1,31 @@
+# MCP 配置示例 - Monad 测试网
+#
+# 使用说明:
+# 1. 复制此文件为 .mcp.json
+# 2. 将 PRIVATE_KEY 替换为你的 Monad 测试网钱包私钥
+# 3. 重启 Claude Code 加载配置
+#
+# 获取测试网 ETH:
+# https://testnet.monadscan.com/ 申请水龙头
+#
+# RPC 地址:
+# https://testnet-rpc.monad.xyz
+#
+# 区块浏览器:
+# https://testnet.monadscan.com
+
+{
+  "mcpServers": {
+    "agentic-wallet": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "monad-agentic-payment/src/mcp-server.ts"
+      ],
+      "env": {
+        "TEST_RPC_URL": "https://testnet-rpc.monad.xyz",
+        "PRIVATE_KEY": "0x 你的 Monad 测试网私钥"
+      }
+    }
+  }
+}

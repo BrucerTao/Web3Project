@@ -18,6 +18,10 @@ import { fileURLToPath } from 'node:url';
 import { Wallet, ethers, type JsonRpcProvider } from 'ethers';
 import { AgenticWallet } from './agentic-wallet.js';
 import { MONAD_CONFIG } from './types.js';
+import {
+  loadPrivateKeyFromEnv,
+  isValidPrivateKey,
+} from './wallet-crypto.js';
 import https from 'node:https';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,9 +57,23 @@ let autoAuditConfig = {
   lastUpdated: Date.now(),
 };
 
-// 如果启动时设置了 PRIVATE_KEY，则自动初始化
-if (process.env.PRIVATE_KEY) {
-  const ownerWallet = new Wallet(process.env.PRIVATE_KEY, provider);
+// 启动时加载加密的私钥（如果有）
+async function initializeWalletFromEnv(): Promise<void> {
+  const { privateKey, isEncrypted } = await loadPrivateKeyFromEnv();
+
+  if (!privateKey) {
+    console.log('[ui-server] 未检测到私钥配置，启动时为演示模式');
+    console.log('  提示：可通过前端 POST /api/init 传入私钥或生成随机钱包');
+    return;
+  }
+
+  // 验证私钥格式
+  if (!isValidPrivateKey(privateKey)) {
+    console.error('[ui-server] 私钥格式错误');
+    process.exit(1);
+  }
+
+  const ownerWallet = new Wallet(privateKey, provider);
   const wallet = new AgenticWallet({
     ownerWallet,
     userId: 'ui-demo-user',
@@ -83,7 +101,8 @@ if (process.env.PRIVATE_KEY) {
   state.agentId = agent.id;
   state.policyId = policy.id;
 
-  console.log('[ui-server] 已使用环境变量中的私钥初始化钱包');
+  const initMsg = isEncrypted ? '🔓 已解密私钥' : '📝 已加载明文私钥';
+  console.log(`[ui-server] ${initMsg}`);
   console.log(`  钱包地址：${ownerWallet.address}`);
   console.log(`  Agent ID: ${agent.id}`);
 }
@@ -576,37 +595,48 @@ function handleRequest(
 
 const server = http.createServer(handleRequest);
 
-function listenFrom(port: number): void {
-  const onErr = (err: NodeJS.ErrnoException): void => {
-    server.off('error', onErr);
-    if (err.code === 'EADDRINUSE' && port < PREFERRED_PORT + PORT_FALLBACK_MAX) {
-      console.warn(
-        `[ui-server] 端口 ${port} 已被占用，改用 ${port + 1}（可设置 UI_PORT 指定端口，或结束占用 ${PREFERRED_PORT} 的进程）`
-      );
-      listenFrom(port + 1);
-      return;
-    }
-    console.error('[ui-server] 监听失败:', err.message);
-    process.exit(1);
-  };
+// 启动时初始化钱包（从环境变量加载加密或明文私钥）
+// 在钱包初始化完成后再启动服务器
+async function startServer(): Promise<void> {
+  await initializeWalletFromEnv();
 
-  server.once('error', onErr);
-  server.listen(port, '127.0.0.1', () => {
-    server.off('error', onErr);
-    console.log('');
-    console.log('  Agentic Treasury Console');
-    console.log(`  http://127.0.0.1:${port}`);
-    console.log(`  Chain: ${MONAD_CONFIG.CHAIN_ID}  RPC: ${rpcUrl}`);
-    if (process.env.TEST_RPC_URL) {
-      console.log(`  [本地测试模式] Ganache: ${process.env.TEST_RPC_URL}`);
-    }
-    if (process.env.PRIVATE_KEY) {
-      console.log(`  [已初始化] 使用环境变量中的私钥`);
-    } else {
-      console.log(`  [演示模式] 前端可通过 POST /api/init 传入私钥或生成随机钱包`);
-    }
-    console.log('');
-  });
+  function listenFrom(port: number): void {
+    const onErr = (err: NodeJS.ErrnoException): void => {
+      server.off('error', onErr);
+      if (err.code === 'EADDRINUSE' && port < PREFERRED_PORT + PORT_FALLBACK_MAX) {
+        console.warn(
+          `[ui-server] 端口 ${port} 已被占用，改用 ${port + 1}（可设置 UI_PORT 指定端口，或结束占用 ${PREFERRED_PORT} 的进程）`
+        );
+        listenFrom(port + 1);
+        return;
+      }
+      console.error('[ui-server] 监听失败:', err.message);
+      process.exit(1);
+    };
+
+    server.once('error', onErr);
+    server.listen(port, '127.0.0.1', () => {
+      server.off('error', onErr);
+      console.log('');
+      console.log('  Agentic Treasury Console');
+      console.log(`  http://127.0.0.1:${port}`);
+      console.log(`  Chain: ${MONAD_CONFIG.CHAIN_ID}  RPC: ${rpcUrl}`);
+      if (process.env.TEST_RPC_URL) {
+        console.log(`  [本地测试模式] Ganache: ${process.env.TEST_RPC_URL}`);
+      }
+      if (state.wallet) {
+        console.log(`  [已初始化] 钱包已加载`);
+      } else {
+        console.log(`  [演示模式] 前端可通过 POST /api/init 传入私钥或生成随机钱包`);
+      }
+      console.log('');
+    });
+  }
+
+  listenFrom(PREFERRED_PORT);
 }
 
-listenFrom(PREFERRED_PORT);
+startServer().catch((err) => {
+  console.error('[ui-server] 启动失败:', err);
+  process.exit(1);
+});

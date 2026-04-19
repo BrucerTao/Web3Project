@@ -15,6 +15,10 @@ import {
 import { Wallet, ethers } from 'ethers';
 import { AgenticWallet } from './agentic-wallet.js';
 import { MONAD_CONFIG } from './types.js';
+import {
+  loadPrivateKeyFromEnv,
+  isValidPrivateKey,
+} from './wallet-crypto.js';
 
 // 全局钱包实例（由环境变量初始化）
 let agenticWallet: AgenticWallet | null = null;
@@ -33,18 +37,33 @@ function jsonStringify(obj: any): string {
 
 /**
  * 初始化钱包（从环境变量加载私钥）
- * 支持 Ganache 本地网络或 Monad 测试网
+ * 支持：
+ * 1. ENCRYPTED_PRIVATE_KEY - 加密格式（推荐）
+ * 2. PRIVATE_KEY / TEST_PRIVATE_KEY - 明文格式（向后兼容）
  */
-function initWallet(): AgenticWallet {
-  const privateKey = process.env.PRIVATE_KEY || process.env.TEST_PRIVATE_KEY;
+async function initWallet(): Promise<AgenticWallet> {
+  const { privateKey, isEncrypted } = await loadPrivateKeyFromEnv();
+
   if (!privateKey) {
-    throw new Error('PRIVATE_KEY or TEST_PRIVATE_KEY environment variable is required');
+    throw new Error(
+      'PRIVATE_KEY, TEST_PRIVATE_KEY, or ENCRYPTED_PRIVATE_KEY environment variable is required'
+    );
+  }
+
+  // 验证私钥格式
+  if (!isValidPrivateKey(privateKey)) {
+    throw new Error('Invalid private key format');
   }
 
   const rpcUrl = process.env.TEST_RPC_URL || MONAD_CONFIG.RPC_URL;
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const wallet = new Wallet(privateKey, provider);
-  console.error(`[MCP] Initialized wallet: ${wallet.address}`);
+
+  // 清除内存中的私钥明文（仅保留 Wallet 实例）
+  // Wallet 实例内部持有私钥用于签名，但不再以字符串形式存在
+
+  const initMsg = isEncrypted ? '🔓 已解密私钥' : '📝 已加载明文私钥';
+  console.error(`[MCP] ${initMsg}: ${wallet.address}`);
   console.error(`[MCP] RPC URL: ${rpcUrl}`);
 
   agenticWallet = new AgenticWallet({
@@ -449,6 +468,14 @@ function createServer(): Server {
  */
 async function main(): Promise<void> {
   console.error('[MCP] Starting Agentic Wallet MCP Server...');
+
+  // 初始化钱包（可能需要用户输入密码解密）
+  try {
+    await initWallet();
+  } catch (error) {
+    console.error('[MCP] Failed to initialize wallet:', error);
+    process.exit(1);
+  }
 
   const server = createServer();
 

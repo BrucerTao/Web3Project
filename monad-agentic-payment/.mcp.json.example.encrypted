@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "agentic-wallet": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "monad-agentic-payment/src/mcp-server.ts"
+      ],
+      "env": {
+        "TEST_RPC_URL": "http://127.0.0.1:8545",
+        "ENCRYPTED_PRIVATE_KEY": "{\"ciphertext\":\"密文\",\"salt\":\"盐值\",\"iv\":\"向量\"}",
+        "DECRYPT_PASSWORD": "你的密码"
+      }
+    }
+  }
+}

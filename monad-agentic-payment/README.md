@@ -28,10 +28,26 @@ npm install
 
 ### 配置环境变量
 
+#### 方式一：加密私钥（推荐）
+
+```bash
+# 1. 运行加密工具
+npx tsx src/cli-encrypt.ts
+
+# 2. 按提示输入私钥和密码
+# 3. 将输出的 ENCRYPTED_PRIVATE_KEY 复制到 .env
+```
+
+启动时会提示输入密码解锁，私钥明文仅保存在内存中。
+
+#### 方式二：明文私钥（仅开发测试）
+
 ```bash
 cp .env.example .env
 # 编辑 .env，设置 PRIVATE_KEY 或 TEST_PRIVATE_KEY
 ```
+
+⚠️ **注意**: 明文私钥不安全，仅用于本地开发测试。生产环境请使用加密方式。
 
 ### 本地测试（使用 Ganache）
 
@@ -77,9 +93,13 @@ npm run ui
 
 | 变量 | 说明 |
 |------|------|
-| `PRIVATE_KEY` | 可选。不设则每次启动使用随机演示钱包；设则与链交互使用对应私钥（请仅在安全环境使用）。 |
+| `ENCRYPTED_PRIVATE_KEY` | 推荐。加密后的私钥，启动时输入密码解密。运行 `npm run encrypt` 生成。 |
+| `DECRYPT_PASSWORD` | 可选。设置后自动解密（用于 MCP/CI），不设置则交互式输入。 |
+| `PRIVATE_KEY` | 可选。明文私钥（仅开发测试用，不推荐生产环境）。 |
 | `UI_PORT` | 可选。首选监听端口，默认 `3847`。 |
 | `TEST_RPC_URL` | 可选。指定 RPC 地址，默认使用 Monad 测试网 `https://testnet-rpc.monad.xyz`。本地 Ganache 测试设为 `http://127.0.0.1:8545`。 |
+
+**优先级**: `ENCRYPTED_PRIVATE_KEY` > `PRIVATE_KEY` > `TEST_PRIVATE_KEY`
 
 **部署提示**：控制台由 `src/ui-server.ts` 提供静态资源与 `/api/*`；生产环境可用进程守护（如 `pm2`）在编译后运行 `node dist/ui-server.js`，前置反向代理与 HTTPS；默认仅监听本机，若对外暴露须自行加鉴权与网络安全策略。详细架构与 API 列表见 [架构详解.md](./架构详解.md) 中的「能力展示控制台（Web UI）」一节。
 
@@ -96,13 +116,41 @@ npm run cli -- request-payment --session <session-id> --to <address> --amount 0.
 npm run cli -- logs
 ```
 
-### 启动 MCP Server（在 Claude Code 中使用）
+### 配置 MCP（在 Claude Code 中使用）
+
+**方式 1：使用明文私钥（开发测试）**
 
 ```bash
-npm run mcp
+cp .mcp.json.example .mcp.json
+# 编辑 .mcp.json，替换 PRIVATE_KEY 为你的私钥
 ```
 
-配置方式见 [MCP 使用指南.md](./MCP 使用指南.md)
+**方式 2：使用加密私钥（推荐）**
+
+```bash
+# 1. 生成 MCP 配置（自动处理 JSON 转义）
+npm run encrypt:mcp
+
+# 2. 复制输出的 JSON 保存为 .mcp.json
+```
+
+**或者使用基础命令**：
+```bash
+npm run encrypt -- --mcp   # 效果相同
+```
+
+**方式 3：Monad 测试网配置**
+
+```bash
+cp .mcp.json.example.monad .mcp.json
+# 编辑 .mcp.json，替换 PRIVATE_KEY 为你的测试网私钥
+```
+
+**私钥配置说明**：
+- `PRIVATE_KEY` 和 `TEST_PRIVATE_KEY` 只需要其中一个即可
+- 优先级：`ENCRYPTED_PRIVATE_KEY` > `PRIVATE_KEY` > `TEST_PRIVATE_KEY`
+
+重启 Claude Code 后，即可调用 MCP 工具。
 
 ## 📖 架构设计
 
