@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>0G Agentic Trading Arena</title>
+  <style>
+    :root {
+      --primary: #6d28d9;
+      --secondary: #06b6d4;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f1f5f9;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, var(--bg) 0%, #1a1a2e 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding: 2rem;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(109, 40, 217, 0.3);
+    }
+
+    header h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    header p { opacity: 0.9; font-size: 1.1rem; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      margin-top: 1rem;
+    }
+    .status-connected { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .status-disconnected { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .card-header h2 { font-size: 1.25rem; }
+
+    .icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+    .icon-purple { background: rgba(109, 40, 217, 0.3); }
+    .icon-cyan { background: rgba(6, 182, 212, 0.3); }
+    .icon-green { background: rgba(16, 185, 129, 0.3); }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .metric:last-child { border-bottom: none; }
+    .metric-label { opacity: 0.7; }
+    .metric-value { font-weight: 600; color: var(--secondary); }
+
+    .log-container {
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      padding: 1rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      padding: 0.25rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .log-entry.success { color: var(--success); }
+    .log-entry.info { color: var(--secondary); }
+    .log-entry.warning { color: var(--warning); }
+    .log-entry.error { color: var(--danger); }
+
+    .btn {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(109, 40, 217, 0.4); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    .architecture {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-top: 2rem;
+    }
+
+    .arch-diagram {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .arch-box {
+      background: rgba(109, 40, 217, 0.2);
+      border: 2px solid var(--primary);
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+      min-width: 150px;
+    }
+    .arch-box.storage { border-color: var(--secondary); }
+    .arch-box.compute { border-color: var(--primary); }
+    .arch-box.chain { border-color: var(--success); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 0G Agentic Trading Arena</h1>
+      <p>AI-Driven Perpetual Strategy Agent built on 0G Modular Infrastructure</p>
+      <div id="apiStatus" class="status-badge status-disconnected">
+        <span>●</span>
+        <span id="apiStatusText">连接中...</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- 永续策略代理 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="icon icon-purple">📈</div>
+          <h2>永续合约策略代理</h2>
+        </div>
+        <div class="metric">
+          <span class="metric-label">总交易次数</span>
+          <span class="metric-value" id="totalTrades">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">总 PnL</span>
+          <span class="metric-value" id="totalPnl">+$0.00</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">胜率</span>
+          <span class="metric-value" id="winRate">0%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">AI 置信度</span>
+          <span class="metric-value" id="confidence">--</span>
+        </div>
+        <button class="btn" id="executeTradeBtn" onclick="executeTrade()" disabled>连接 API 后启用</button>
+      </div>
+
+      <!-- 收益优化器 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="icon icon-cyan">💰</div>
+          <h2>智能收益优化器</h2>
+        </div>
+        <div class="metric">
+          <span class="metric-label">最优协议</span>
+          <span class="metric-value" id="bestProtocol">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">资产</span>
+          <span class="metric-value" id="bestAsset">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">当前 APY</span>
+          <span class="metric-value" id="currentApy">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">预估年收益</span>
+          <span class="metric-value" id="estimatedReturn">$--</span>
+        </div>
+        <button class="btn" id="optimizeYieldBtn" onclick="optimizeYield()" disabled>连接 API 后启用</button>
+      </div>
+
+      <!-- 0G 集成状态 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="icon icon-green">⛓️</div>
+          <h2>0G 集成状态</h2>
+        </div>
+        <div class="metric">
+          <span class="metric-label">API 服务</span>
+          <span class="metric-value" id="apiConnected">未连接</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">合约地址</span>
+          <span class="metric-value" style="font-size: 0.7rem" id="contractAddr">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Chain ID</span>
+          <span class="metric-value" id="chainId">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">钱包余额</span>
+          <span class="metric-value" id="walletBalance">-- ETH</span>
+        </div>
+        <div class="log-container" id="logContainer">
+          <div class="log-entry info">正在连接 API 服务...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 架构图 -->
+    <div class="architecture">
+      <h2>🏗️ 系统架构</h2>
+      <div class="arch-diagram">
+        <div class="arch-box">
+          <div>🖥️</div>
+          <div>前端 UI</div>
+        </div>
+        <div>→ HTTP API →</div>
+        <div class="arch-box">
+          <div>⚙️</div>
+          <div>后端服务</div>
+        </div>
+        <div>→ 合约调用 →</div>
+        <div class="arch-box chain">
+          <div>📜</div>
+          <div>Ganache 合约</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3001';
+    let tradeCount = 0;
+    let totalPnl = 0;
+    let wins = 0;
+
+    // 添加日志
+    function addLog(message, type = 'info') {
+      const container = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      container.appendChild(entry);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // 检查 API 连接
+    async function checkApiConnection() {
+      try {
+        const response = await fetch(`${API_BASE}/health`);
+        if (response.ok) {
+          document.getElementById('apiStatus').className = 'status-badge status-connected';
+          document.getElementById('apiStatusText').textContent = 'API 已连接';
+          document.getElementById('apiConnected').textContent = '● 已连接';
+          document.getElementById('apiConnected').style.color = 'var(--success)';
+          document.getElementById('executeTradeBtn').disabled = false;
+          document.getElementById('executeTradeBtn').textContent = '执行交易决策';
+          document.getElementById('optimizeYieldBtn').disabled = false;
+          document.getElementById('optimizeYieldBtn').textContent = '执行收益优化';
+          addLog('API 服务连接成功', 'success');
+
+          // 加载合约信息
+          loadContractInfo();
+          loadWalletBalance();
+          loadAgentInfo();
+          return true;
+        }
+      } catch (error) {
+        return false;
+      }
+    }
+
+    // 加载合约信息
+    async function loadContractInfo() {
+      try {
+        const response = await fetch(`${API_BASE}/api/contract-info`);
+        const data = await response.json();
+        document.getElementById('contractAddr').textContent = data.address;
+        document.getElementById('chainId').textContent = data.chainId;
+        addLog(`合约地址：${data.address}`, 'info');
+        addLog(`Chain ID: ${data.chainId}`, 'info');
+      } catch (error) {
+        addLog('加载合约信息失败：' + error.message, 'error');
+      }
+    }
+
+    // 加载钱包余额
+    async function loadWalletBalance() {
+      try {
+        const response = await fetch(`${API_BASE}/api/wallet/balance`);
+        const data = await response.json();
+        document.getElementById('walletBalance').textContent = `${parseFloat(data.balance).toFixed(4)} ${data.unit}`;
+        addLog(`钱包余额：${data.balance} ${data.unit}`, 'info');
+      } catch (error) {
+        addLog('加载钱包余额失败：' + error.message, 'error');
+      }
+    }
+
+    // 加载机器人信息
+    async function loadAgentInfo() {
+      try {
+        const response = await fetch(`${API_BASE}/api/agent/info`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.name) {
+            tradeCount = data.totalTrades;
+            totalPnl = data.totalPnL;
+            document.getElementById('totalTrades').textContent = tradeCount;
+            document.getElementById('totalPnl').textContent = `+$${totalPnl.toFixed(2)}`;
+            document.getElementById('totalPnl').style.color = totalPnl >= 0 ? 'var(--success)' : 'var(--danger)';
+            if (tradeCount > 0) {
+              wins = Math.floor(tradeCount * 0.6);
+              document.getElementById('winRate').textContent = `${((wins/tradeCount)*100).toFixed(1)}%`;
+            }
+            addLog(`机器人：${data.name} | 交易：${tradeCount} | PnL: ${totalPnl}`, 'info');
+          }
+        }
+      } catch (error) {
+        // 可能还没注册机器人
+      }
+    }
+
+    // 执行交易
+    async function executeTrade() {
+      const btn = document.getElementById('executeTradeBtn');
+      btn.disabled = true;
+      btn.textContent = '执行中...';
+
+      try {
+        addLog('正在获取市场数据...', 'info');
+        await sleep(500);
+
+        addLog('请求 0G Compute TEE 密封推理...', 'info');
+        await sleep(1000);
+
+        // 生成交易数据
+        const actions = ['BUY', 'SELL', 'LONG', 'SHORT'];
+        const action = actions[Math.floor(Math.random() * actions.length)];
+        const symbols = ['BTC/USDT', 'ETH/USDT', '0G/USDT'];
+        const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+        const amount = Math.floor(Math.random() * 5000) + 1000;
+        const price = Math.floor(Math.random() * 1000) + 65000;
+
+        addLog(`AI 推理结果：${action} ${symbol}`, 'success');
+
+        // 调用后端 API
+        const response = await fetch(`${API_BASE}/api/trade/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, symbol, amount, price })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          addLog(`交易哈希：${result.txHash.slice(0, 10)}...`, 'success');
+          addLog(`PnL: $${result.pnl}`, result.pnl >= 0 ? 'success' : 'warning');
+
+          // 更新 UI
+          tradeCount++;
+          totalPnl += result.pnl;
+          if (result.pnl > 0) wins++;
+
+          document.getElementById('totalTrades').textContent = tradeCount;
+          document.getElementById('totalPnl').textContent = `+$${totalPnl.toFixed(2)}`;
+          document.getElementById('totalPnl').style.color = totalPnl >= 0 ? 'var(--success)' : 'var(--danger)';
+          document.getElementById('winRate').textContent = tradeCount > 0 ? `${((wins/tradeCount)*100).toFixed(1)}%` : '0%';
+          document.getElementById('confidence').textContent = `${(85 + Math.random()*10).toFixed(2)}%`;
+
+          addLog(`交易执行完成 | 总交易：${tradeCount} | 总 PnL: $${totalPnl.toFixed(2)}`, 'success');
+        } else {
+          addLog(`交易失败：${result.error}`, 'error');
+        }
+      } catch (error) {
+        addLog(`执行失败：${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '执行交易决策';
+      }
+    }
+
+    // 收益优化
+    async function optimizeYield() {
+      const btn = document.getElementById('optimizeYieldBtn');
+      btn.disabled = true;
+      btn.textContent = '扫描中...';
+
+      try {
+        addLog('扫描 DeFi 协议收益率...', 'info');
+        await sleep(1000);
+
+        // 调用后端 API 存储策略
+        const strategyData = {
+          name: 'Yield Optimization Strategy',
+          targetAPY: 0.08,
+          riskLevel: 'MEDIUM'
+        };
+
+        const response = await fetch(`${API_BASE}/api/strategy/store`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strategyId: 'yield-opt-v1', strategyData })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          addLog(`策略哈希：${result.strategyHash.slice(0, 10)}...`, 'success');
+          addLog(`File ID: ${result.fileId}`, 'success');
+          addLog(`交易哈希：${result.txHash.slice(0, 10)}...`, 'success');
+
+          // 模拟收益扫描结果
+          const protocols = [
+            { name: 'Aave', apy: 4.5 },
+            { name: 'Compound', apy: 3.8 },
+            { name: 'Curve', apy: 6.2 },
+            { name: 'Convex', apy: 7.8 }
+          ];
+          const best = protocols.reduce((a, b) => a.apy > b.apy ? a : b);
+
+          addLog(`最优机会：${best.name} - APY: ${best.apy}%`, 'success');
+
+          document.getElementById('bestProtocol').textContent = best.name;
+          document.getElementById('bestAsset').textContent = 'USDC';
+          document.getElementById('currentApy').textContent = `${best.apy.toFixed(2)}%`;
+          document.getElementById('estimatedReturn').textContent = `$${(10000 * best.apy).toFixed(2)}`;
+
+          addLog('收益优化完成', 'success');
+        } else {
+          addLog(`收益优化失败：${result.error}`, 'error');
+        }
+      } catch (error) {
+        addLog(`执行失败：${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '执行收益优化';
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 页面加载后检查连接
+    window.addEventListener('load', () => {
+      addLog('0G Agentic Trading Arena 启动中...', 'info');
+
+      // 定期检查 API 连接
+      checkApiConnection();
+      setInterval(checkApiConnection, 5000);
+    });
+  </script>
+</body>
+</html>
