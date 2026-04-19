@@ -150,7 +150,8 @@ function serveStatic(
 
 function getPendingApprovals(): unknown[] {
   if (!state.wallet) return [];
-  const logs = state.wallet.getAuditLogs({ limit: 200 }) as Array<{
+  // 添加 reload: true 以从文件重新加载日志（支持 MCP 和 UI 服务器同时运行）
+  const logs = state.wallet.getAuditLogs({ limit: 200, reload: true }) as Array<{
     id: string;
     paymentResult: {
       requiredHumanApproval?: boolean;
@@ -438,7 +439,8 @@ async function handleApi(
       Number(new URL(req.url || '', 'http://localhost').searchParams.get('limit')) ||
         80
     );
-    const logs = state.wallet!.getAuditLogs({ limit });
+    // 添加 reload: true 以从文件重新加载日志（支持 MCP 和 UI 服务器同时运行）
+    const logs = state.wallet!.getAuditLogs({ limit, reload: true });
     json(res, { logs });
     return;
   }

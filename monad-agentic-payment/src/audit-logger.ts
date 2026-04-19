@@ -93,12 +93,29 @@ export class AuditLogger {
   }
 
   /**
+   * 重新加载审计日志（用于检测外部写入的变更）
+   */
+  reloadLogs(): void {
+    console.log(`[AUDIT] Reloading logs from ${this.dataFile}, current memory has ${this.logs.size} logs`);
+    // 清空内存中的日志和索引
+    this.logs.clear();
+    this.logsByUser.clear();
+    this.logsByAgent.clear();
+    this.logsByTask.clear();
+    // 重新加载
+    this.loadLogs();
+    console.log(`[AUDIT] Reloaded ${this.logs.size} logs from file`);
+  }
+
+  /**
    * 保存审计日志到 JSON 文件（公开方法，供外部调用）
    */
   saveLogs(): void {
     try {
       const content = this.exportLogs();
+      console.log(`[AUDIT] Saving ${this.logs.size} logs to ${this.dataFile}`);
       fs.writeFileSync(this.dataFile, content, 'utf-8');
+      console.log(`[AUDIT] Successfully saved audit logs`);
     } catch (err: any) {
       console.error(`[AUDIT] Failed to save audit logs: ${err.message}`);
     }
@@ -265,6 +282,7 @@ export class AuditLogger {
     startDate?: Date;
     endDate?: Date;
   }): string {
+    // 直接使用内存中的日志，不调用 reloadLogs() 避免丢失未持久化的日志
     let logs = Array.from(this.logs.values());
 
     if (options?.userId) {
@@ -342,6 +360,7 @@ export class AuditLogger {
     averageRiskLevel: string;
     logsByRiskLevel: Record<string, number>;
   } {
+    // 直接使用内存中的日志，不调用 reloadLogs() 避免丢失未持久化的日志
     const logs = Array.from(this.logs.values());
     const successful = logs.filter(log => log.paymentResult.success);
     const failed = logs.filter(log => !log.paymentResult.success);

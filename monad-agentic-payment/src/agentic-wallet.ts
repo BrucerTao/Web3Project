@@ -416,6 +416,7 @@ export class AgenticWallet {
     limit?: number;
     userId?: string;
     agentId?: string;
+    reload?: boolean;  // 是否从文件重新加载（用于多进程场景）
   }): any[] {
     const limit = options?.limit ?? 50;
 
@@ -427,6 +428,10 @@ export class AgenticWallet {
     }
 
     // 返回所有日志（不仅仅是成功的）
+    // 如果 reload=true，先从文件重新加载（用于多进程场景，如 MCP 和 UI 服务器同时运行）
+    if (options?.reload) {
+      this.auditLogger.reloadLogs();
+    }
     const allLogs = this.auditLogger.exportLogs();
     return JSON.parse(allLogs).slice(-limit);
   }

@@ -6,6 +6,7 @@
 
 import 'dotenv/config';
 
+import path from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -65,11 +66,17 @@ async function initWallet(): Promise<AgenticWallet> {
   const initMsg = isEncrypted ? '🔓 已解密私钥' : '📝 已加载明文私钥';
   console.error(`[MCP] ${initMsg}: ${wallet.address}`);
   console.error(`[MCP] RPC URL: ${rpcUrl}`);
+  console.error(`[MCP] process.cwd(): ${process.cwd()}`);
+
+  // 使用 MCP 服务器脚本所在位置作为基准路径
+  const __dirname = new URL('.', import.meta.url).pathname;
+  const dataDir = path.resolve(__dirname, '../data');
 
   agenticWallet = new AgenticWallet({
     ownerWallet: wallet,
     userId: process.env.USER_ID || `user-${wallet.address.slice(0, 8)}`,
     rpcUrl: rpcUrl,
+    dataDir,  // 审计日志保存到 monad-agentic-payment/data/{walletAddress}/
   });
 
   return agenticWallet;
@@ -264,7 +271,10 @@ function createServer(): Server {
     try {
       // 确保钱包已初始化
       if (!agenticWallet) {
-        initWallet();
+        console.error('[MCP] Wallet not initialized, calling initWallet()');
+        await initWallet();
+      } else {
+        console.error('[MCP] Wallet already initialized:', agenticWallet.getAddress());
       }
 
       const { name, arguments: args } = request.params;
